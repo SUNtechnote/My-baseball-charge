@@ -61,11 +61,14 @@ import { getFirestore, doc, setDoc, onSnapshot } from "https://cdn.jsdelivr.net/
 const fbApp=initializeApp({apiKey:"AIzaSyDZhrjrg6vIW7Fqld-OmV3rbmTRDAndvZo",authDomain:"my-baseball-charge.firebaseapp.com",projectId:"my-baseball-charge",storageBucket:"my-baseball-charge.firebasestorage.app",messagingSenderId:"972554550098",appId:"1:972554550098:web:7170e4e575d9d56d8d988b"});
 const auth=getAuth(fbApp),db=getFirestore(fbApp);
 
-// ① 類別順序：餐飲第一，其餘依字數排，刪掉醫療
-const EXPENSE_CATS=["餐飲","交通","娛樂","購物","帳單","其他支出"];
+const EXPENSE_CATS=["交通","娛樂","購物","帳單","其他支出"];
 const INCOME_CATS=["薪資","其他收入"];
-const ALL_CATS=[...INCOME_CATS,...EXPENSE_CATS];
+// 餐飲放第一，其次收入類，再來其他支出類
+const ALL_CATS=["餐飲",...INCOME_CATS,...EXPENSE_CATS];
 const CC={餐飲:"#f87171",交通:"#4f8ef7",娛樂:"#fbbf24",購物:"#f472b6",帳單:"#a78bfa",其他支出:"#606080",薪資:"#00d4a0",其他收入:"#00b386"};
+// EXPENSE_CATS_ALL 用於計算支出（包含餐飲）
+const EXPENSE_CATS_ALL=["餐飲",...EXPENSE_CATS];
+
 const MLB=[["#003087","#fff","NYY"],["#BD3039","#fff","BOS"],["#003831","#EFB21E","OAK"],["#0C2340","#fff","LAD"],["#C41E3A","#fff","STL"],["#EB6E1F","#000","SFG"],["#002D62","#fff","CHC"],["#003278","#fff","HOU"],["#E81828","#fff","CIN"]];
 const INIT_ACC=[{id:2,name:"台新帳戶",balance:3352,mlb:0},{id:3,name:"元大帳戶",balance:228,mlb:1},{id:4,name:"中信帳戶",balance:331,mlb:2},{id:5,name:"華南帳戶",balance:59,mlb:3},{id:6,name:"郵局帳戶",balance:8953,mlb:4},{id:7,name:"Leger",balance:117620,mlb:5},{id:8,name:"MAX",balance:25216,mlb:6},{id:9,name:"定期定額",balance:58338,mlb:7}];
 const TABS=[{id:"dashboard",icon:"⚡",label:"總覽"},{id:"assets",icon:"🏦",label:"資產"},{id:"log",icon:"📝",label:"記帳"},{id:"credit",icon:"💳",label:"信用卡"},{id:"invest",icon:"📈",label:"投資"},{id:"charts",icon:"📊",label:"圖表"}];
@@ -85,8 +88,6 @@ const todayM=()=>today().slice(0,7);
 
 let state={accounts:INIT_ACC,entries:[],credits:[],portfolio:[],monthlySnapshots:{}};
 let tab="dashboard",filterMonth=todayM(),user=null,unsub=null,saveTimer=null,usdTwd=31.5;
-
-// ② 新增 editingId 狀態，追蹤目前展開哪一筆
 let editingId=null;
 
 async function fetchRate(){try{const r=await fetch("https://api.exchangerate-api.com/v4/latest/USD");const d=await r.json();if(d.rates?.TWD)usdTwd=d.rates.TWD;}catch{}}
@@ -118,7 +119,16 @@ onAuthStateChanged(auth,u=>{user=u;if(u)subscribeUser(u.uid);else render();});
 async function login(){try{await signInWithPopup(auth,new GoogleAuthProvider());}catch(e){alert("登入失敗："+e.message);}}
 async function logout(){if(unsub)unsub();await signOut(auth);render();}
 
-function checkRollup(){const day=new Date().getDate(),ym=todayM();if(day<28||state.monthlySnapshots[ym])return;const me=state.entries.filter(e=>e.date.startsWith(ym));const inc=me.filter(e=>INCOME_CATS.includes(e.cat)).reduce((s,e)=>s+e.amt,0);const exp=me.filter(e=>EXPENSE_CATS.includes(e.cat)).reduce((s,e)=>s+e.amt,0);if(state.accounts.length>0)state.accounts[0]={...state.accounts[0],balance:state.accounts[0].balance+(inc-exp)};state.monthlySnapshots[ym]={inc,exp,pnl:inc-exp,settledAt:today()};saveToCloud();}
+function checkRollup(){
+  const day=new Date().getDate(),ym=todayM();
+  if(day<28||state.monthlySnapshots[ym])return;
+  const me=state.entries.filter(e=>e.date.startsWith(ym));
+  const inc=me.filter(e=>INCOME_CATS.includes(e.cat)).reduce((s,e)=>s+e.amt,0);
+  const exp=me.filter(e=>EXPENSE_CATS_ALL.includes(e.cat)).reduce((s,e)=>s+e.amt,0);
+  if(state.accounts.length>0)state.accounts[0]={...state.accounts[0],balance:state.accounts[0].balance+(inc-exp)};
+  state.monthlySnapshots[ym]={inc,exp,pnl:inc-exp,settledAt:today()};
+  saveToCloud();
+}
 
 function mut(fn){fn();saveToCloud();render();}
 window.delEntry=id=>mut(()=>state.entries=state.entries.filter(x=>x.id!==id));
@@ -133,24 +143,15 @@ window.openMenu=()=>{document.getElementById("side-menu")?.classList.add("open")
 window.closeMenu=()=>{document.getElementById("side-menu")?.classList.remove("open");document.getElementById("overlay")?.classList.remove("open");};
 window.setTabMenu=t=>{tab=t;editingId=null;window.closeMenu();render();};
 
-// ③ 展開 / 收起編輯
+// 展開 / 收起編輯
 window.startEdit=id=>{editingId=(editingId===id?null:id);render();};
 
-// ③ 儲存編輯：從 DOM 讀值後寫回 state
+// 儲存編輯：直接用 document.getElementById 搭配動態 id，避免雙版面干擾
 window.saveEdit=id=>{
-  // 同時支援桌機版和手機版的 DOM，找可見的那個
-  const getEidVal=(field)=>{
-    const els=Array.from(document.querySelectorAll(`[data-eid="${id}"][data-field="${field}"]`));
-    const vis=els.find(el=>{
-      const wrap=el.closest("#desktop-wrap")||el.closest("#mobile-content");
-      return wrap&&window.getComputedStyle(wrap).display!=="none";
-    });
-    return (vis||els[0])?.value??"";
-  };
-  const date=getEidVal("date");
-  const amt=+getEidVal("amt");
-  const cat=getEidVal("cat");
-  const note=getEidVal("note");
+  const date=document.getElementById("eid_date_"+id)?.value;
+  const amt=+document.getElementById("eid_amt_"+id)?.value;
+  const cat=document.getElementById("eid_cat_"+id)?.value;
+  const note=document.getElementById("eid_note_"+id)?.value??"";
   if(!amt||amt<=0){alert("金額不能為空");return;}
   mut(()=>state.entries=state.entries.map(e=>e.id===id?{...e,date,amt,cat,note}:e));
   editingId=null;
@@ -179,7 +180,7 @@ function calc(){
   const me=state.entries.filter(e=>e.date.startsWith(filterMonth));
   const totalBank=state.accounts.reduce((s,a)=>s+a.balance,0);
   const monthInc=me.filter(e=>INCOME_CATS.includes(e.cat)).reduce((s,e)=>s+e.amt,0);
-  const monthExp=me.filter(e=>EXPENSE_CATS.includes(e.cat)).reduce((s,e)=>s+e.amt,0);
+  const monthExp=me.filter(e=>EXPENSE_CATS_ALL.includes(e.cat)).reduce((s,e)=>s+e.amt,0);
   const savings=monthInc-monthExp,avg=monthInc>0?Math.min(savings/monthInc,1):0;
   const tm=todayM();
   const monthCredit=state.credits.reduce((s,c)=>{const ms=Array.from({length:c.installments},(_,i)=>{const d=new Date(c.startDate);d.setMonth(d.getMonth()+i);return d.toISOString().slice(0,7);});return ms.includes(tm)?s+Math.round(c.total/c.installments):s;},0);
@@ -204,7 +205,6 @@ function mergePortfolio(list){
 }
 
 const charts={};
-
 function getActiveWrap(){
   const mobile=document.getElementById("mobile-content");
   const desktop=document.getElementById("desktop-wrap");
@@ -212,16 +212,10 @@ function getActiveWrap(){
   if(desktop&&window.getComputedStyle(desktop).display!=="none")return desktop;
   return document;
 }
-
-function getActiveCanvas(chartName){
-  const wrap=getActiveWrap();
-  return wrap.querySelector(`canvas[data-chart="${chartName}"]`);
-}
-
+function getActiveCanvas(chartName){return getActiveWrap().querySelector(`canvas[data-chart="${chartName}"]`);}
 function drawPie(chartName,labels,data,colors){
   const canvas=getActiveCanvas(chartName);
-  if(!canvas)return;
-  if(!window.Chart){console.error("Chart.js 尚未載入");return;}
+  if(!canvas||!window.Chart)return;
   if(charts[chartName]){charts[chartName].destroy();delete charts[chartName];}
   charts[chartName]=new window.Chart(canvas,{
     type:"pie",
@@ -232,7 +226,7 @@ function drawPie(chartName,labels,data,colors){
 
 function renderCharts(me,totalBank,monthInc,monthExp,portfolioValue){
   drawPie("pie1",["收入","支出"],[monthInc||0.001,monthExp||0.001],["#00d4a0","#f87171"]);
-  const cats=EXPENSE_CATS.filter(c=>me.some(e=>e.cat===c));
+  const cats=EXPENSE_CATS_ALL.filter(c=>me.some(e=>e.cat===c));
   drawPie("pie2",cats.length?cats:["尚無支出"],cats.length?cats.map(c=>me.filter(e=>e.cat===c).reduce((s,e)=>s+e.amt,0)):[0.001],cats.length?cats.map(c=>CC[c]):["#2a2a45"]);
   const usVal=state.portfolio.filter(p=>p.type==="us").reduce((s,p)=>s+p.costPerUnit*p.units*usdTwd,0);
   const cryptoVal=state.portfolio.filter(p=>p.type==="crypto").reduce((s,p)=>s+p.costPerUnit*p.units,0);
@@ -257,10 +251,7 @@ function invCard(p,type){
   const ids=p._ids;
   const delCall=ids.map(id=>`delPort(${id})`).join(";");
   const merged=ids.length>1;
-  const isUS=type==="us";
-  const isCrypto=type==="crypto";
-  const isTW=type==="tw";
-  const isFund=type==="fund";
+  const isUS=type==="us";const isCrypto=type==="crypto";const isTW=type==="tw";const isFund=type==="fund";
   let livePrice=null;
   if(isUS){const c=priceCache[p.symbol];livePrice=c?.price||null;}
   if(isCrypto){const cgId=CRYPTO_ID_MAP[p.symbol]||p.symbol.toLowerCase();const c=priceCache["crypto_"+cgId];livePrice=c?.price||null;}
@@ -287,44 +278,35 @@ function invCard(p,type){
       </div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px;">
-      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;">
-        <div style="font-size:10px;color:var(--text3);">均攤成本</div>
-        <div style="font-size:13px;font-weight:600;color:var(--text2);">${isUS?fmtUSD(p.costPerUnit):"NT$"+Math.round(p.costPerUnit).toLocaleString()}</div>
-      </div>
+      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">均攤成本</div><div style="font-size:13px;font-weight:600;color:var(--text2);">${isUS?fmtUSD(p.costPerUnit):"NT$"+Math.round(p.costPerUnit).toLocaleString()}</div></div>
       ${(isUS||isCrypto)?`
-      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;">
-        <div style="font-size:10px;color:var(--text3);">即時價(USD)</div>
-        <div style="font-size:13px;font-weight:600;color:${color};">${livePrice?fmtUSD(livePrice):"—"}</div>
-      </div>
-      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;">
-        <div style="font-size:10px;color:var(--text3);">損益</div>
-        <div style="font-size:13px;font-weight:700;color:${pctColor};">${pctStr}</div>
-      </div>`:`
-      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;">
-        <div style="font-size:10px;color:var(--text3);">持有數量</div>
-        <div style="font-size:13px;font-weight:600;color:${color};">${p.units}${isTW?"股":"單位"}</div>
-      </div>
-      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;">
-        <div style="font-size:10px;color:var(--text3);">持倉成本</div>
-        <div style="font-size:13px;font-weight:700;color:var(--text1);">${fmt(costTWD)}</div>
-      </div>`}
+      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">即時價(USD)</div><div style="font-size:13px;font-weight:600;color:${color};">${livePrice?fmtUSD(livePrice):"—"}</div></div>
+      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">損益</div><div style="font-size:13px;font-weight:700;color:${pctColor};">${pctStr}</div></div>`:`
+      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">持有數量</div><div style="font-size:13px;font-weight:600;color:${color};">${p.units}${isTW?"股":"單位"}</div></div>
+      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">持倉成本</div><div style="font-size:13px;font-weight:700;color:var(--text1);">${fmt(costTWD)}</div></div>`}
     </div>
     ${isUS?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;">
-        <div style="font-size:10px;color:var(--text3);">市值(USD)</div>
-        <div style="font-size:14px;font-weight:700;color:${color};">${mktUSD?fmtUSD(mktUSD):fmtUSD(p.costPerUnit*p.units)}</div>
-        ${!mktUSD?`<div style="font-size:9px;color:var(--text3);">成本估算</div>`:""}
-      </div>
-      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;">
-        <div style="font-size:10px;color:var(--text3);">市值(TWD)</div>
-        <div style="font-size:14px;font-weight:700;color:var(--text1);">${fmt(mktTWD)}</div>
-      </div>
-    </div>`:`<div style="background:var(--bg4);border-radius:8px;padding:8px 10px;">
-      <div style="font-size:10px;color:var(--text3);">市值(TWD)</div>
-      <div style="font-size:14px;font-weight:700;color:${color};">${fmt(mktTWD)}</div>
-      ${isCrypto&&!livePrice?`<div style="font-size:9px;color:var(--text3);">成本估算，點刷新取得即時價</div>`:""}
-    </div>`}
+      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">市值(USD)</div><div style="font-size:14px;font-weight:700;color:${color};">${mktUSD?fmtUSD(mktUSD):fmtUSD(p.costPerUnit*p.units)}</div>${!mktUSD?`<div style="font-size:9px;color:var(--text3);">成本估算</div>`:""}</div>
+      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">市值(TWD)</div><div style="font-size:14px;font-weight:700;color:var(--text1);">${fmt(mktTWD)}</div></div>
+    </div>`:`<div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">市值(TWD)</div><div style="font-size:14px;font-weight:700;color:${color};">${fmt(mktTWD)}</div>${isCrypto&&!livePrice?`<div style="font-size:9px;color:var(--text3);">成本估算，點刷新取得即時價</div>`:""}</div>`}
     <div style="font-size:11px;color:var(--text3);margin-top:6px;">${p.units}${isUS?"股":isCrypto?"顆":isTW?"股":"單位"} · 匯率 ${usdTwd.toFixed(2)}</div>
+  </div>`;
+}
+
+// 編輯卡片 HTML（桌機版和手機版共用同一份，id 唯一不衝突）
+function editCard(e){
+  return `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--accent);">
+    <div style="font-size:13px;color:var(--accent);font-weight:700;margin-bottom:10px;">✏️ 編輯記錄</div>
+    <div class="grid2" style="margin-bottom:10px;">
+      <div>${lbl("日期")}<input id="eid_date_${e.id}" type="date" value="${e.date}"></div>
+      <div>${lbl("類別")}<select id="eid_cat_${e.id}">${ALL_CATS.map(c=>`<option${c===e.cat?" selected":""}>${c}</option>`).join("")}</select></div>
+    </div>
+    <div style="margin-bottom:10px;">${lbl("備註（選填）")}<input id="eid_note_${e.id}" type="text" value="${e.note||""}"></div>
+    <div style="margin-bottom:14px;">${lbl("金額 (NT$)")}<input id="eid_amt_${e.id}" type="number" value="${e.amt}"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-green" onclick="saveEdit(${e.id})" style="flex:1;padding:10px;font-size:15px;">✓ 儲存</button>
+      <button onclick="startEdit(${e.id})" style="flex:1;padding:10px;border-radius:10px;background:var(--bg4);color:var(--text2);font-size:15px;">取消</button>
+    </div>
   </div>`;
 }
 
@@ -386,23 +368,7 @@ function buildContent(me,totalBank,monthInc,monthExp,savings,avg,monthCredit,por
     ${me.length===0?`<div style="font-size:14px;color:var(--text3);text-align:center;padding:20px 0;">這個月還沒有記錄。</div>`:""}
     ${me.map(e=>{
       const isIncome=INCOME_CATS.includes(e.cat);
-      if(editingId===e.id){
-        // ③ 展開編輯模式
-        return `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--accent);">
-          <div style="font-size:13px;color:var(--accent);font-weight:700;margin-bottom:10px;">✏️ 編輯記錄</div>
-          <div class="grid2" style="margin-bottom:10px;">
-            <div>${lbl("日期")}<input data-eid="${e.id}" data-field="date" type="date" value="${e.date}"></div>
-            <div>${lbl("類別")}<select data-eid="${e.id}" data-field="cat">${ALL_CATS.map(c=>`<option${c===e.cat?" selected":""}>${c}</option>`).join("")}</select></div>
-          </div>
-          <div style="margin-bottom:10px;">${lbl("備註（選填）")}<input data-eid="${e.id}" data-field="note" type="text" value="${e.note||""}"></div>
-          <div style="margin-bottom:14px;">${lbl("金額 (NT$)")}<input data-eid="${e.id}" data-field="amt" type="number" value="${e.amt}"></div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn-green" onclick="saveEdit(${e.id})" style="flex:1;padding:10px;font-size:15px;">✓ 儲存</button>
-            <button onclick="startEdit(${e.id})" style="flex:1;padding:10px;border-radius:10px;background:var(--bg4);color:var(--text2);font-size:15px;">取消</button>
-          </div>
-        </div>`;
-      }
-      // 一般列表列，點擊展開編輯，× 刪除不觸發展開
+      if(editingId===e.id) return editCard(e);
       return `<div class="row" onclick="startEdit(${e.id})" style="cursor:pointer;">
         <div style="width:9px;height:9px;border-radius:50%;background:${CC[e.cat]||"#888"};flex-shrink:0;"></div>
         <div style="flex:1;min-width:0;">
@@ -446,7 +412,6 @@ function buildContent(me,totalBank,monthInc,monthExp,savings,avg,monthCredit,por
         ${list.length===0?`<div style="font-size:13px;color:var(--text3);padding:8px 0 12px;">尚無${INV_LABEL[type].split(" ")[1]}持倉。</div>`:list.map(p=>invCard(p,type)).join("")}
         <div class="glow-line"></div>`;
     }).join("");
-
     return `
       <div class="card" style="margin-bottom:18px;">
         <div style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--accent);">新增持倉 📈</div>
@@ -493,7 +458,7 @@ function buildContent(me,totalBank,monthInc,monthExp,savings,avg,monthCredit,por
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">${lbl("月份")}<input type="month" value="${filterMonth}" onchange="setMonth(this.value)" style="width:auto;padding:8px 12px;font-size:14px;margin-top:0;"></div>
       ${pieSection("本月收支比","pie1",[dot("#00d4a0","收入",fmt(monthInc)),dot("#f87171","支出",fmt(monthExp))].join(""))}
       <div class="glow-line"></div>
-      ${pieSection("支出分類","pie2",EXPENSE_CATS.filter(c=>me.some(e=>e.cat===c)).map(c=>{const v=me.filter(e=>e.cat===c).reduce((s,e)=>s+e.amt,0);return dot(CC[c],c,monthExp>0?Math.round(v/monthExp*100)+"%":"");}).join(""))}
+      ${pieSection("支出分類","pie2",EXPENSE_CATS_ALL.filter(c=>me.some(e=>e.cat===c)).map(c=>{const v=me.filter(e=>e.cat===c).reduce((s,e)=>s+e.amt,0);return dot(CC[c],c,monthExp>0?Math.round(v/monthExp*100)+"%":"");}).join(""))}
       <div class="glow-line"></div>
       ${pieSection("全部資產大類佔比","pie3",assetLegs)}`;
   }
@@ -535,9 +500,7 @@ function render(){
       <div style="margin-top:24px;font-size:11px;color:var(--text3);text-align:center;">⚾ 個人財務記分板 · Firebase 雲端同步</div>
     </div>`;
   if(tab==="charts"){
-    requestAnimationFrame(()=>{
-      setTimeout(()=>{renderCharts(me,totalBank,monthInc,monthExp,portfolioValue);},100);
-    });
+    requestAnimationFrame(()=>{setTimeout(()=>{renderCharts(me,totalBank,monthInc,monthExp,portfolioValue);},100);});
   }
 }
 </script>
