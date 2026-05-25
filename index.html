@@ -61,15 +61,15 @@ import { getFirestore, doc, setDoc, onSnapshot } from "https://cdn.jsdelivr.net/
 const fbApp=initializeApp({apiKey:"AIzaSyDZhrjrg6vIW7Fqld-OmV3rbmTRDAndvZo",authDomain:"my-baseball-charge.firebaseapp.com",projectId:"my-baseball-charge",storageBucket:"my-baseball-charge.firebasestorage.app",messagingSenderId:"972554550098",appId:"1:972554550098:web:7170e4e575d9d56d8d988b"});
 const auth=getAuth(fbApp),db=getFirestore(fbApp);
 
-const EXPENSE_CATS=["餐飲","交通","娛樂","購物","醫療","帳單","其他支出"];
+// ① 類別順序：餐飲第一，其餘依字數排，刪掉醫療
+const EXPENSE_CATS=["餐飲","交通","娛樂","購物","帳單","其他支出"];
 const INCOME_CATS=["薪資","其他收入"];
 const ALL_CATS=[...INCOME_CATS,...EXPENSE_CATS];
-const CC={餐飲:"#f87171",交通:"#4f8ef7",娛樂:"#fbbf24",購物:"#f472b6",醫療:"#00d4a0",帳單:"#a78bfa",其他支出:"#606080",薪資:"#00d4a0",其他收入:"#00b386"};
+const CC={餐飲:"#f87171",交通:"#4f8ef7",娛樂:"#fbbf24",購物:"#f472b6",帳單:"#a78bfa",其他支出:"#606080",薪資:"#00d4a0",其他收入:"#00b386"};
 const MLB=[["#003087","#fff","NYY"],["#BD3039","#fff","BOS"],["#003831","#EFB21E","OAK"],["#0C2340","#fff","LAD"],["#C41E3A","#fff","STL"],["#EB6E1F","#000","SFG"],["#002D62","#fff","CHC"],["#003278","#fff","HOU"],["#E81828","#fff","CIN"]];
 const INIT_ACC=[{id:2,name:"台新帳戶",balance:3352,mlb:0},{id:3,name:"元大帳戶",balance:228,mlb:1},{id:4,name:"中信帳戶",balance:331,mlb:2},{id:5,name:"華南帳戶",balance:59,mlb:3},{id:6,name:"郵局帳戶",balance:8953,mlb:4},{id:7,name:"Leger",balance:117620,mlb:5},{id:8,name:"MAX",balance:25216,mlb:6},{id:9,name:"定期定額",balance:58338,mlb:7}];
 const TABS=[{id:"dashboard",icon:"⚡",label:"總覽"},{id:"assets",icon:"🏦",label:"資產"},{id:"log",icon:"📝",label:"記帳"},{id:"credit",icon:"💳",label:"信用卡"},{id:"invest",icon:"📈",label:"投資"},{id:"charts",icon:"📊",label:"圖表"}];
 
-// 投資類別顏色
 const INV_COLOR={us:"#7c3aed",crypto:"#f59e0b",tw:"#10b981",fund:"#3b82f6"};
 const INV_LABEL={us:"📈 美股",crypto:"🪙 加密貨幣",tw:"🏢 台股",fund:"💼 基金"};
 
@@ -85,6 +85,9 @@ const todayM=()=>today().slice(0,7);
 
 let state={accounts:INIT_ACC,entries:[],credits:[],portfolio:[],monthlySnapshots:{}};
 let tab="dashboard",filterMonth=todayM(),user=null,unsub=null,saveTimer=null,usdTwd=31.5;
+
+// ② 新增 editingId 狀態，追蹤目前展開哪一筆
+let editingId=null;
 
 async function fetchRate(){try{const r=await fetch("https://api.exchangerate-api.com/v4/latest/USD");const d=await r.json();if(d.rates?.TWD)usdTwd=d.rates.TWD;}catch{}}
 fetchRate();
@@ -123,12 +126,35 @@ window.delAcc=id=>mut(()=>state.accounts=state.accounts.filter(a=>a.id!==id));
 window.delCred=id=>mut(()=>state.credits=state.credits.filter(c=>c.id!==id));
 window.delPort=id=>mut(()=>{state.portfolio=state.portfolio.filter(p=>p.id!==id);});
 window.updateAccBal=(id,v)=>mut(()=>state.accounts=state.accounts.map(a=>a.id===id?{...a,balance:+v}:a));
-window.setTab=t=>{tab=t;render();};
+window.setTab=t=>{tab=t;editingId=null;render();};
 window.setMonth=m=>{filterMonth=m;render();};
 window.login=login;window.logout=logout;
 window.openMenu=()=>{document.getElementById("side-menu")?.classList.add("open");document.getElementById("overlay")?.classList.add("open");};
 window.closeMenu=()=>{document.getElementById("side-menu")?.classList.remove("open");document.getElementById("overlay")?.classList.remove("open");};
-window.setTabMenu=t=>{tab=t;window.closeMenu();render();};
+window.setTabMenu=t=>{tab=t;editingId=null;window.closeMenu();render();};
+
+// ③ 展開 / 收起編輯
+window.startEdit=id=>{editingId=(editingId===id?null:id);render();};
+
+// ③ 儲存編輯：從 DOM 讀值後寫回 state
+window.saveEdit=id=>{
+  // 同時支援桌機版和手機版的 DOM，找可見的那個
+  const getEidVal=(field)=>{
+    const els=Array.from(document.querySelectorAll(`[data-eid="${id}"][data-field="${field}"]`));
+    const vis=els.find(el=>{
+      const wrap=el.closest("#desktop-wrap")||el.closest("#mobile-content");
+      return wrap&&window.getComputedStyle(wrap).display!=="none";
+    });
+    return (vis||els[0])?.value??"";
+  };
+  const date=getEidVal("date");
+  const amt=+getEidVal("amt");
+  const cat=getEidVal("cat");
+  const note=getEidVal("note");
+  if(!amt||amt<=0){alert("金額不能為空");return;}
+  mut(()=>state.entries=state.entries.map(e=>e.id===id?{...e,date,amt,cat,note}:e));
+  editingId=null;
+};
 
 function getVal(id){
   const els=Array.from(document.querySelectorAll(`[data-fid="${id}"]`));
@@ -164,7 +190,6 @@ function calc(){
   return{me,totalBank,monthInc,monthExp,savings,avg,monthCredit,portfolioValue,totalAssets:totalBank+portfolioValue};
 }
 
-// 合併同標的
 function mergePortfolio(list){
   return Object.values(list.reduce((acc,p)=>{
     if(!acc[p.symbol]){acc[p.symbol]={...p,_ids:[p.id]};}
@@ -178,142 +203,47 @@ function mergePortfolio(list){
   },{}));
 }
 
-// ── 圖表修正版：避免手機版/電腦版重複 canvas 導致抓錯 ──
-const charts = {};
+const charts={};
 
 function getActiveWrap(){
-  const mobile = document.getElementById("mobile-content");
-  const desktop = document.getElementById("desktop-wrap");
-
-  if (mobile && window.getComputedStyle(mobile).display !== "none") {
-    return mobile;
-  }
-
-  if (desktop && window.getComputedStyle(desktop).display !== "none") {
-    return desktop;
-  }
-
+  const mobile=document.getElementById("mobile-content");
+  const desktop=document.getElementById("desktop-wrap");
+  if(mobile&&window.getComputedStyle(mobile).display!=="none")return mobile;
+  if(desktop&&window.getComputedStyle(desktop).display!=="none")return desktop;
   return document;
 }
 
 function getActiveCanvas(chartName){
-  const wrap = getActiveWrap();
+  const wrap=getActiveWrap();
   return wrap.querySelector(`canvas[data-chart="${chartName}"]`);
 }
 
-function drawPie(chartName, labels, data, colors){
-  const canvas = getActiveCanvas(chartName);
-  if (!canvas) return;
-
-  if (!window.Chart) {
-    console.error("Chart.js 尚未載入");
-    return;
-  }
-
-  if (charts[chartName]) {
-    charts[chartName].destroy();
-    delete charts[chartName];
-  }
-
-  charts[chartName] = new window.Chart(canvas, {
-    type: "pie",
-    data: {
-      labels,
-      datasets: [{
-        data,
-        backgroundColor: colors,
-        borderWidth: 0,
-        hoverOffset: 6
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              const value = ctx.raw < 1 ? 0 : ctx.raw;
-              return " " + fmt(value);
-            }
-          }
-        }
-      }
-    }
+function drawPie(chartName,labels,data,colors){
+  const canvas=getActiveCanvas(chartName);
+  if(!canvas)return;
+  if(!window.Chart){console.error("Chart.js 尚未載入");return;}
+  if(charts[chartName]){charts[chartName].destroy();delete charts[chartName];}
+  charts[chartName]=new window.Chart(canvas,{
+    type:"pie",
+    data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const value=ctx.raw<1?0:ctx.raw;return " "+fmt(value);}}}}}
   });
 }
 
 function renderCharts(me,totalBank,monthInc,monthExp,portfolioValue){
-
-  // 圖1：本月收支比
-  drawPie(
-    "pie1",
-    ["收入","支出"],
-    [monthInc || 0.001, monthExp || 0.001],
-    ["#00d4a0","#f87171"]
-  );
-
-  // 圖2：支出分類
-  const cats = EXPENSE_CATS.filter(c => me.some(e => e.cat === c));
-
-  drawPie(
-    "pie2",
-    cats.length ? cats : ["尚無支出"],
-    cats.length
-      ? cats.map(c => me.filter(e => e.cat === c).reduce((s,e)=>s+e.amt,0))
-      : [0.001],
-    cats.length
-      ? cats.map(c => CC[c])
-      : ["#2a2a45"]
-  );
-
-  // 圖3：資產大類
-  const usVal = state.portfolio
-    .filter(p => p.type === "us")
-    .reduce((s,p)=>s+p.costPerUnit*p.units*usdTwd,0);
-
-  const cryptoVal = state.portfolio
-    .filter(p => p.type === "crypto")
-    .reduce((s,p)=>s+p.costPerUnit*p.units,0);
-
-  const twVal = state.portfolio
-    .filter(p => p.type === "tw")
-    .reduce((s,p)=>s+p.costPerUnit*p.units,0);
-
-  const fundVal = state.portfolio
-    .filter(p => p.type === "fund")
-    .reduce((s,p)=>s+p.costPerUnit*p.units,0);
-
-  const labels = ["現金/銀行"];
-  const data = [totalBank || 0.001];
-  const colors = ["#4f8ef7"];
-
-  if (usVal > 0) {
-    labels.push("美股");
-    data.push(usVal);
-    colors.push(INV_COLOR.us);
-  }
-
-  if (cryptoVal > 0) {
-    labels.push("加密貨幣");
-    data.push(cryptoVal);
-    colors.push(INV_COLOR.crypto);
-  }
-
-  if (twVal > 0) {
-    labels.push("台股");
-    data.push(twVal);
-    colors.push(INV_COLOR.tw);
-  }
-
-  if (fundVal > 0) {
-    labels.push("基金");
-    data.push(fundVal);
-    colors.push(INV_COLOR.fund);
-  }
-
-  drawPie("pie3", labels, data, colors);
+  drawPie("pie1",["收入","支出"],[monthInc||0.001,monthExp||0.001],["#00d4a0","#f87171"]);
+  const cats=EXPENSE_CATS.filter(c=>me.some(e=>e.cat===c));
+  drawPie("pie2",cats.length?cats:["尚無支出"],cats.length?cats.map(c=>me.filter(e=>e.cat===c).reduce((s,e)=>s+e.amt,0)):[0.001],cats.length?cats.map(c=>CC[c]):["#2a2a45"]);
+  const usVal=state.portfolio.filter(p=>p.type==="us").reduce((s,p)=>s+p.costPerUnit*p.units*usdTwd,0);
+  const cryptoVal=state.portfolio.filter(p=>p.type==="crypto").reduce((s,p)=>s+p.costPerUnit*p.units,0);
+  const twVal=state.portfolio.filter(p=>p.type==="tw").reduce((s,p)=>s+p.costPerUnit*p.units,0);
+  const fundVal=state.portfolio.filter(p=>p.type==="fund").reduce((s,p)=>s+p.costPerUnit*p.units,0);
+  const labels=["現金/銀行"];const data=[totalBank||0.001];const colors=["#4f8ef7"];
+  if(usVal>0){labels.push("美股");data.push(usVal);colors.push(INV_COLOR.us);}
+  if(cryptoVal>0){labels.push("加密貨幣");data.push(cryptoVal);colors.push(INV_COLOR.crypto);}
+  if(twVal>0){labels.push("台股");data.push(twVal);colors.push(INV_COLOR.tw);}
+  if(fundVal>0){labels.push("基金");data.push(fundVal);colors.push(INV_COLOR.fund);}
+  drawPie("pie3",labels,data,colors);
 }
 
 function mlbBadge(idx){const[bg,tc,lb]=MLB[idx%MLB.length];return `<div class="mlb-badge" style="background:${bg};color:${tc};">${lb}</div>`;}
@@ -322,7 +252,6 @@ const sc=(label,value,color,accent)=>`<div class="stat-card" style="--accent-lin
 const dot=(c,l,v)=>`<span style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text2);"><span style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block;"></span>${l}${v?` <strong style="color:var(--text1);">${v}</strong>`:""}</span>`;
 function pieSection(title,id,legs){return `<div style="margin-bottom:24px;"><div style="font-size:15px;font-weight:700;margin-bottom:8px;">${title}</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">${legs}</div><div style="position:relative;height:220px;"><canvas data-chart="${id}"></canvas></div></div>`;}
 
-// ── 投資卡片產生器 ───────────────────────────────────
 function invCard(p,type){
   const color=INV_COLOR[type];
   const ids=p._ids;
@@ -332,27 +261,19 @@ function invCard(p,type){
   const isCrypto=type==="crypto";
   const isTW=type==="tw";
   const isFund=type==="fund";
-
-  // 取即時價格
   let livePrice=null;
   if(isUS){const c=priceCache[p.symbol];livePrice=c?.price||null;}
   if(isCrypto){const cgId=CRYPTO_ID_MAP[p.symbol]||p.symbol.toLowerCase();const c=priceCache["crypto_"+cgId];livePrice=c?.price||null;}
-
-  // 計算損益
   let pct=null;
-  if(isUS&&livePrice) pct=(livePrice-p.costPerUnit)/p.costPerUnit*100;
+  if(isUS&&livePrice)pct=(livePrice-p.costPerUnit)/p.costPerUnit*100;
   if(isCrypto&&livePrice){const costUSD=p.costPerUnit/usdTwd;pct=(livePrice-costUSD)/costUSD*100;}
   const pctColor=pct===null?"var(--text3)":pct>=0?"#00d4a0":"#f87171";
   const pctStr=pct===null?"—":(pct>=0?"+":"")+pct.toFixed(2)+"%";
-
-  // 市值
   let mktTWD=null,mktUSD=null;
   if(isUS){mktUSD=livePrice?livePrice*p.units:null;mktTWD=mktUSD?mktUSD*usdTwd:p.costPerUnit*p.units*usdTwd;}
   if(isCrypto){mktTWD=livePrice?livePrice*p.units*usdTwd:p.costPerUnit*p.units;}
-  if(isTW||isFund) mktTWD=p.costPerUnit*p.units;
-
+  if(isTW||isFund)mktTWD=p.costPerUnit*p.units;
   const costTWD=isUS?p.costPerUnit*p.units*usdTwd:p.costPerUnit*p.units;
-
   return `<div class="card" style="margin-bottom:10px;border-left:3px solid ${color};">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
@@ -372,7 +293,7 @@ function invCard(p,type){
       </div>
       ${(isUS||isCrypto)?`
       <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;">
-        <div style="font-size:10px;color:var(--text3);">即時價${isUS?"(USD)":"(USD)"}</div>
+        <div style="font-size:10px;color:var(--text3);">即時價(USD)</div>
         <div style="font-size:13px;font-weight:600;color:${color};">${livePrice?fmtUSD(livePrice):"—"}</div>
       </div>
       <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;">
@@ -457,13 +378,41 @@ function buildContent(me,totalBank,monthInc,monthExp,savings,avg,monthCredit,por
         <div>${lbl("日期")}<input type="date" data-fid="eDate" value="${today()}"></div>
         <div>${lbl("類別")}<select data-fid="eCat">${ALL_CATS.map(c=>`<option>${c}</option>`).join("")}</select></div>
       </div>
-      <div style="margin-bottom:10px;">${lbl("金額 (NT$)")}<input type="number" data-fid="eAmt" placeholder="0"></div>
-      <div style="margin-bottom:14px;">${lbl("備註（選填）")}<input type="text" data-fid="eNote" placeholder="早餐、悠遊卡加值..."></div>
+      <div style="margin-bottom:10px;">${lbl("備註（選填）")}<input type="text" data-fid="eNote" placeholder="早餐、悠遊卡加值..."></div>
+      <div style="margin-bottom:14px;">${lbl("金額 (NT$)")}<input type="number" data-fid="eAmt" placeholder="0"></div>
       <button class="btn-green" onclick="submitEntry()" style="width:100%;padding:13px;font-size:16px;">⚾ 揮棒！</button>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">${lbl("月份")}<input type="month" value="${filterMonth}" onchange="setMonth(this.value)" style="width:auto;padding:8px 12px;font-size:14px;margin-top:0;"></div>
     ${me.length===0?`<div style="font-size:14px;color:var(--text3);text-align:center;padding:20px 0;">這個月還沒有記錄。</div>`:""}
-    ${me.map(e=>`<div class="row"><div style="width:9px;height:9px;border-radius:50%;background:${CC[e.cat]||"#888"};flex-shrink:0;"></div><div style="flex:1;min-width:0;"><div style="font-size:14px;">${e.cat}${e.note?`<span style="font-size:11px;color:var(--text3);margin-left:6px;">· ${e.note}</span>`:""}</div><div style="font-size:11px;color:var(--text3);">${e.date}</div></div><div style="font-size:14px;font-weight:700;color:${INCOME_CATS.includes(e.cat)?"#00d4a0":"#f87171"};flex-shrink:0;">${INCOME_CATS.includes(e.cat)?"+":"-"}${fmt(e.amt)}</div><button class="btn-del" onclick="delEntry(${e.id})">×</button></div>`).join("")}`;
+    ${me.map(e=>{
+      const isIncome=INCOME_CATS.includes(e.cat);
+      if(editingId===e.id){
+        // ③ 展開編輯模式
+        return `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--accent);">
+          <div style="font-size:13px;color:var(--accent);font-weight:700;margin-bottom:10px;">✏️ 編輯記錄</div>
+          <div class="grid2" style="margin-bottom:10px;">
+            <div>${lbl("日期")}<input data-eid="${e.id}" data-field="date" type="date" value="${e.date}"></div>
+            <div>${lbl("類別")}<select data-eid="${e.id}" data-field="cat">${ALL_CATS.map(c=>`<option${c===e.cat?" selected":""}>${c}</option>`).join("")}</select></div>
+          </div>
+          <div style="margin-bottom:10px;">${lbl("備註（選填）")}<input data-eid="${e.id}" data-field="note" type="text" value="${e.note||""}"></div>
+          <div style="margin-bottom:14px;">${lbl("金額 (NT$)")}<input data-eid="${e.id}" data-field="amt" type="number" value="${e.amt}"></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-green" onclick="saveEdit(${e.id})" style="flex:1;padding:10px;font-size:15px;">✓ 儲存</button>
+            <button onclick="startEdit(${e.id})" style="flex:1;padding:10px;border-radius:10px;background:var(--bg4);color:var(--text2);font-size:15px;">取消</button>
+          </div>
+        </div>`;
+      }
+      // 一般列表列，點擊展開編輯，× 刪除不觸發展開
+      return `<div class="row" onclick="startEdit(${e.id})" style="cursor:pointer;">
+        <div style="width:9px;height:9px;border-radius:50%;background:${CC[e.cat]||"#888"};flex-shrink:0;"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:14px;">${e.cat}${e.note?`<span style="font-size:11px;color:var(--text3);margin-left:6px;">· ${e.note}</span>`:""}</div>
+          <div style="font-size:11px;color:var(--text3);">${e.date}</div>
+        </div>
+        <div style="font-size:14px;font-weight:700;color:${isIncome?"#00d4a0":"#f87171"};flex-shrink:0;">${isIncome?"+":"-"}${fmt(e.amt)}</div>
+        <button class="btn-del" onclick="event.stopPropagation();delEntry(${e.id})">×</button>
+      </div>`;
+    }).join("")}`;
 
   if(tab==="credit") return `
     <div class="card" style="margin-bottom:18px;">
@@ -586,12 +535,10 @@ function render(){
       <div style="margin-top:24px;font-size:11px;color:var(--text3);text-align:center;">⚾ 個人財務記分板 · Firebase 雲端同步</div>
     </div>`;
   if(tab==="charts"){
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      renderCharts(me,totalBank,monthInc,monthExp,portfolioValue);
-    }, 100);
-  });
-}
+    requestAnimationFrame(()=>{
+      setTimeout(()=>{renderCharts(me,totalBank,monthInc,monthExp,portfolioValue);},100);
+    });
+  }
 }
 </script>
 </head>
