@@ -126,8 +126,30 @@ function stopAutoRefresh(){
 }
 
 function saveToCloud(){if(!user)return;clearTimeout(saveTimer);saveTimer=setTimeout(async()=>{try{await setDoc(doc(db,"users",user.uid),state);}catch(e){console.error(e);}},800);}
-function subscribeUser(uid){if(unsub)unsub();unsub=onSnapshot(doc(db,"users",uid),snap=>{if(snap.exists()){const d=snap.data();state.accounts=d.accounts||INIT_ACC;state.entries=d.entries||[];state.credits=d.credits||[];state.portfolio=d.portfolio||[];state.monthlySnapshots=d.monthlySnapshots||{};}checkRollup();render();});}
-onAuthStateChanged(auth,u=>{user=u;if(u){subscribeUser(u.uid);startAutoRefresh();}else{stopAutoRefresh();render();}});
+function subscribeUser(uid){
+  if(unsub)unsub();
+  let firstLoad=true;
+  unsub=onSnapshot(doc(db,"users",uid),snap=>{
+    if(snap.exists()){
+      const d=snap.data();
+      state.accounts=d.accounts||INIT_ACC;
+      state.entries=d.entries||[];
+      state.credits=d.credits||[];
+      state.portfolio=d.portfolio||[];
+      state.monthlySnapshots=d.monthlySnapshots||{};
+    }
+    checkRollup();
+    render();
+    // Firebase 資料第一次載入完成後才抓報價，確保 portfolio 有資料
+    if(firstLoad){
+      firstLoad=false;
+      fetchAllPrices(true);
+      if(autoRefreshTimer)clearInterval(autoRefreshTimer);
+      autoRefreshTimer=setInterval(()=>fetchAllPrices(true),5*60*1000);
+    }
+  });
+}
+onAuthStateChanged(auth,u=>{user=u;if(u){subscribeUser(u.uid);}else{stopAutoRefresh();render();}});
 async function login(){try{await signInWithPopup(auth,new GoogleAuthProvider());}catch(e){alert("登入失敗："+e.message);}}
 async function logout(){if(unsub)unsub();await signOut(auth);render();}
 
