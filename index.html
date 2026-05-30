@@ -63,10 +63,8 @@ const auth=getAuth(fbApp),db=getFirestore(fbApp);
 
 const EXPENSE_CATS=["交通","娛樂","購物","帳單","其他支出"];
 const INCOME_CATS=["薪資","其他收入"];
-// 餐飲放第一，其次收入類，再來其他支出類
 const ALL_CATS=["餐飲",...INCOME_CATS,...EXPENSE_CATS];
 const CC={餐飲:"#f87171",交通:"#4f8ef7",娛樂:"#fbbf24",購物:"#f472b6",帳單:"#a78bfa",其他支出:"#606080",薪資:"#00d4a0",其他收入:"#00b386"};
-// EXPENSE_CATS_ALL 用於計算支出（包含餐飲）
 const EXPENSE_CATS_ALL=["餐飲",...EXPENSE_CATS];
 
 const MLB=[["#003087","#fff","NYY"],["#BD3039","#fff","BOS"],["#003831","#EFB21E","OAK"],["#0C2340","#fff","LAD"],["#C41E3A","#fff","STL"],["#EB6E1F","#000","SFG"],["#002D62","#fff","CHC"],["#003278","#fff","HOU"],["#E81828","#fff","CIN"]];
@@ -75,7 +73,6 @@ const TABS=[{id:"dashboard",icon:"⚡",label:"總覽"},{id:"assets",icon:"🏦",
 
 const INV_COLOR={us:"#7c3aed",crypto:"#f59e0b",tw:"#10b981",fund:"#3b82f6"};
 const INV_LABEL={us:"📈 美股",crypto:"🪙 加密貨幣",tw:"🏢 台股",fund:"💼 基金"};
-
 const CRYPTO_ID_MAP={BTC:"bitcoin",ETH:"ethereum",USDT:"tether",BNB:"binancecoin",SOL:"solana",XRP:"ripple",USDC:"usd-coin",ADA:"cardano",DOGE:"dogecoin",TRX:"tron",TON:"the-open-network",AVAX:"avalanche-2",SHIB:"shiba-inu",DOT:"polkadot",LINK:"chainlink",MATIC:"matic-network",LTC:"litecoin",BCH:"bitcoin-cash",UNI:"uniswap",ATOM:"cosmos"};
 
 const FINNHUB_KEY="d7rjhj9r01qgahvdrg2gd7rjhj9r01qgahvdrg30";
@@ -124,7 +121,9 @@ function checkRollup(){
   if(day<28||state.monthlySnapshots[ym])return;
   const me=state.entries.filter(e=>e.date.startsWith(ym));
   const inc=me.filter(e=>INCOME_CATS.includes(e.cat)).reduce((s,e)=>s+e.amt,0);
-  const exp=me.filter(e=>EXPENSE_CATS_ALL.includes(e.cat)).reduce((s,e)=>s+e.amt,0);
+  const expEntries=me.filter(e=>EXPENSE_CATS_ALL.includes(e.cat)).reduce((s,e)=>s+e.amt,0);
+  const expCredit=state.credits.reduce((s,c)=>{const ms=Array.from({length:c.installments},(_,i)=>{const d=new Date(c.startDate);d.setMonth(d.getMonth()+i);return d.toISOString().slice(0,7);});return ms.includes(ym)?s+Math.round(c.total/c.installments):s;},0);
+  const exp=expEntries+expCredit;
   if(state.accounts.length>0)state.accounts[0]={...state.accounts[0],balance:state.accounts[0].balance+(inc-exp)};
   state.monthlySnapshots[ym]={inc,exp,pnl:inc-exp,settledAt:today()};
   saveToCloud();
@@ -143,10 +142,7 @@ window.openMenu=()=>{document.getElementById("side-menu")?.classList.add("open")
 window.closeMenu=()=>{document.getElementById("side-menu")?.classList.remove("open");document.getElementById("overlay")?.classList.remove("open");};
 window.setTabMenu=t=>{tab=t;editingId=null;window.closeMenu();render();};
 
-// 展開 / 收起編輯
 window.startEdit=id=>{editingId=(editingId===id?null:id);render();};
-
-// 儲存編輯：直接用 document.getElementById 搭配動態 id，避免雙版面干擾
 window.saveEdit=id=>{
   const date=document.getElementById("eid_date_"+id)?.value;
   const amt=+document.getElementById("eid_amt_"+id)?.value;
@@ -176,19 +172,30 @@ window.submitPort=()=>{
   mut(()=>state.portfolio.push({id:Date.now(),symbol,cgId,units,costPerUnit,type}));
 };
 
+function calcMonthCredit(ym){
+  return state.credits.reduce((s,c)=>{
+    const ms=Array.from({length:c.installments},(_,i)=>{
+      const d=new Date(c.startDate);d.setMonth(d.getMonth()+i);return d.toISOString().slice(0,7);
+    });
+    return ms.includes(ym)?s+Math.round(c.total/c.installments):s;
+  },0);
+}
+
 function calc(){
+  const tm=todayM();
   const me=state.entries.filter(e=>e.date.startsWith(filterMonth));
   const totalBank=state.accounts.reduce((s,a)=>s+a.balance,0);
   const monthInc=me.filter(e=>INCOME_CATS.includes(e.cat)).reduce((s,e)=>s+e.amt,0);
-  const monthExp=me.filter(e=>EXPENSE_CATS_ALL.includes(e.cat)).reduce((s,e)=>s+e.amt,0);
+  const monthExpEntries=me.filter(e=>EXPENSE_CATS_ALL.includes(e.cat)).reduce((s,e)=>s+e.amt,0);
+  // 信用卡當月分期也加入支出
+  const monthCredit=calcMonthCredit(filterMonth);
+  const monthExp=monthExpEntries+monthCredit;
   const savings=monthInc-monthExp,avg=monthInc>0?Math.min(savings/monthInc,1):0;
-  const tm=todayM();
-  const monthCredit=state.credits.reduce((s,c)=>{const ms=Array.from({length:c.installments},(_,i)=>{const d=new Date(c.startDate);d.setMonth(d.getMonth()+i);return d.toISOString().slice(0,7);});return ms.includes(tm)?s+Math.round(c.total/c.installments):s;},0);
   const portfolioValue=state.portfolio.reduce((s,p)=>{
     const v=p.type==="us"?p.costPerUnit*p.units*usdTwd:p.costPerUnit*p.units;
     return s+v;
   },0);
-  return{me,totalBank,monthInc,monthExp,savings,avg,monthCredit,portfolioValue,totalAssets:totalBank+portfolioValue};
+  return{me,totalBank,monthInc,monthExp,monthCredit,savings,avg,portfolioValue,totalAssets:totalBank+portfolioValue};
 }
 
 function mergePortfolio(list){
@@ -224,10 +231,23 @@ function drawPie(chartName,labels,data,colors){
   });
 }
 
-function renderCharts(me,totalBank,monthInc,monthExp,portfolioValue){
+function renderCharts(me,totalBank,monthInc,monthExp,monthCredit,portfolioValue){
+  // 圖1：收支比（支出已含信用卡分期）
   drawPie("pie1",["收入","支出"],[monthInc||0.001,monthExp||0.001],["#00d4a0","#f87171"]);
+
+  // 圖2：支出分類（記帳類別 + 信用卡分期單獨一塊）
   const cats=EXPENSE_CATS_ALL.filter(c=>me.some(e=>e.cat===c));
-  drawPie("pie2",cats.length?cats:["尚無支出"],cats.length?cats.map(c=>me.filter(e=>e.cat===c).reduce((s,e)=>s+e.amt,0)):[0.001],cats.length?cats.map(c=>CC[c]):["#2a2a45"]);
+  const catLabels=[...cats];
+  const catData=[...cats.map(c=>me.filter(e=>e.cat===c).reduce((s,e)=>s+e.amt,0))];
+  const catColors=[...cats.map(c=>CC[c])];
+  if(monthCredit>0){catLabels.push("信用卡分期");catData.push(monthCredit);catColors.push("#f472b6");}
+  drawPie("pie2",
+    catLabels.length?catLabels:["尚無支出"],
+    catLabels.length?catData:[0.001],
+    catLabels.length?catColors:["#2a2a45"]
+  );
+
+  // 圖3：資產大類
   const usVal=state.portfolio.filter(p=>p.type==="us").reduce((s,p)=>s+p.costPerUnit*p.units*usdTwd,0);
   const cryptoVal=state.portfolio.filter(p=>p.type==="crypto").reduce((s,p)=>s+p.costPerUnit*p.units,0);
   const twVal=state.portfolio.filter(p=>p.type==="tw").reduce((s,p)=>s+p.costPerUnit*p.units,0);
@@ -293,7 +313,6 @@ function invCard(p,type){
   </div>`;
 }
 
-// 編輯卡片 HTML（桌機版和手機版共用同一份，id 唯一不衝突）
 function editCard(e){
   return `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--accent);">
     <div style="font-size:13px;color:var(--accent);font-weight:700;margin-bottom:10px;">✏️ 編輯記錄</div>
@@ -310,7 +329,7 @@ function editCard(e){
   </div>`;
 }
 
-function buildContent(me,totalBank,monthInc,monthExp,savings,avg,monthCredit,portfolioValue,totalAssets){
+function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,portfolioValue,totalAssets){
   const rankLabel=avg>=0.4?"全壘打儲蓄王 ★":avg>=0.3?"強力打擊手":avg>=0.2?"安全上壘":avg>=0.1?"揮棒練習中":"";
   const rankColor=avg>=0.4?"#00d4a0":avg>=0.3?"#4f8ef7":avg>=0.2?"#fbbf24":"#f87171";
   const tm=todayM();
@@ -332,7 +351,10 @@ function buildContent(me,totalBank,monthInc,monthExp,savings,avg,monthCredit,por
     </div>
     <div class="grid3" style="margin-bottom:14px;">
       ${sc("存款總額",fmt(totalBank),"#4f8ef7")}${sc("本月收入",fmt(monthInc),"#00d4a0")}${sc("本月支出",fmt(monthExp),"#f87171","#f87171")}
-      ${sc("信用卡應付",fmt(monthCredit),"#fbbf24","#fbbf24")}${sc("投資估值",fmt(portfolioValue),"#a78bfa","#a78bfa")}${sc("總資產",fmt(totalAssets),"#00d4a0")}
+      ${sc("信用卡分期",fmt(monthCredit),"#fbbf24","#fbbf24")}${sc("投資估值",fmt(portfolioValue),"#a78bfa","#a78bfa")}${sc("總資產",fmt(totalAssets),"#00d4a0")}
+    </div>
+    <div style="font-size:11px;color:var(--text3);padding:6px 12px;background:var(--bg3);border-radius:8px;margin-bottom:14px;border:1px solid var(--border);">
+      💳 本月支出已含信用卡分期 ${fmt(monthCredit)}
     </div>
     <div class="glow-line"></div>
     <div style="font-size:14px;color:var(--text2);margin-bottom:8px;font-weight:600;">最近記錄</div>
@@ -454,11 +476,16 @@ function buildContent(me,totalBank,monthInc,monthExp,savings,avg,monthCredit,por
       twVal?dot(INV_COLOR.tw,"台股",fmt(twVal)):"",
       fundVal?dot(INV_COLOR.fund,"基金",fmt(fundVal)):"",
     ].filter(Boolean).join("");
+    const cats=EXPENSE_CATS_ALL.filter(c=>me.some(e=>e.cat===c));
+    const pie2legs=[
+      ...cats.map(c=>{const v=me.filter(e=>e.cat===c).reduce((s,e)=>s+e.amt,0);return dot(CC[c],c,monthExp>0?Math.round(v/monthExp*100)+"%":"");}),
+      monthCredit>0?dot("#f472b6","信用卡分期",monthExp>0?Math.round(monthCredit/monthExp*100)+"%":""):"",
+    ].filter(Boolean).join("");
     return `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">${lbl("月份")}<input type="month" value="${filterMonth}" onchange="setMonth(this.value)" style="width:auto;padding:8px 12px;font-size:14px;margin-top:0;"></div>
       ${pieSection("本月收支比","pie1",[dot("#00d4a0","收入",fmt(monthInc)),dot("#f87171","支出",fmt(monthExp))].join(""))}
       <div class="glow-line"></div>
-      ${pieSection("支出分類","pie2",EXPENSE_CATS_ALL.filter(c=>me.some(e=>e.cat===c)).map(c=>{const v=me.filter(e=>e.cat===c).reduce((s,e)=>s+e.amt,0);return dot(CC[c],c,monthExp>0?Math.round(v/monthExp*100)+"%":"");}).join(""))}
+      ${pieSection("支出分類（含信用卡分期）","pie2",pie2legs)}
       <div class="glow-line"></div>
       ${pieSection("全部資產大類佔比","pie3",assetLegs)}`;
   }
@@ -469,8 +496,8 @@ function render(){
   const root=document.getElementById("root");
   if(!root)return;
   if(!user){root.innerHTML=`<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#12121f,#0a0a14);"><div style="text-align:center;padding:40px;"><div style="font-size:64px;margin-bottom:16px;filter:drop-shadow(0 0 20px #00d4a060);">⚾</div><div style="font-size:26px;font-weight:900;margin-bottom:6px;">個人財務記分板</div><div style="font-size:13px;color:var(--text3);margin-bottom:36px;letter-spacing:1px;">PERSONAL FINANCE SCOREBOARD</div><button onclick="login()" style="padding:14px 36px;border-radius:12px;background:linear-gradient(135deg,#00d4a0,#00b386);color:#000;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 0 24px rgba(0,212,160,.3);">使用 Google 帳號登入</button><div style="margin-top:16px;font-size:12px;color:var(--text3);">資料加密存於 Firebase · 僅你可見</div></div></div>`;return;}
-  const{me,totalBank,monthInc,monthExp,savings,avg,monthCredit,portfolioValue,totalAssets}=calc();
-  const content=buildContent(me,totalBank,monthInc,monthExp,savings,avg,monthCredit,portfolioValue,totalAssets);
+  const{me,totalBank,monthInc,monthExp,monthCredit,savings,avg,portfolioValue,totalAssets}=calc();
+  const content=buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,portfolioValue,totalAssets);
   const curTab=TABS.find(t=>t.id===tab)||TABS[0];
   const tabBar=`<div class="tabbar">${TABS.map(t=>`<button class="tab${tab===t.id?" active":""}" onclick="setTab('${t.id}')">${t.icon} ${t.label}</button>`).join("")}</div>`;
   root.innerHTML=`
@@ -500,7 +527,7 @@ function render(){
       <div style="margin-top:24px;font-size:11px;color:var(--text3);text-align:center;">⚾ 個人財務記分板 · Firebase 雲端同步</div>
     </div>`;
   if(tab==="charts"){
-    requestAnimationFrame(()=>{setTimeout(()=>{renderCharts(me,totalBank,monthInc,monthExp,portfolioValue);},100);});
+    requestAnimationFrame(()=>{setTimeout(()=>{renderCharts(me,totalBank,monthInc,monthExp,monthCredit,portfolioValue);},100);});
   }
 }
 </script>
