@@ -99,20 +99,35 @@ async function fetchCryptoPrice(cgId){
   if(priceCache[key]&&Date.now()-priceCache[key].updatedAt<5*60*1000)return priceCache[key].price;
   try{const r=await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${cgId}&vs_currencies=usd`);const d=await r.json();const p=d?.[cgId]?.usd;if(p){priceCache[key]={price:p,updatedAt:Date.now()};return p;}}catch{}return null;
 }
-window.refreshPrices=async()=>{
+// 抓取所有持倉報價（silent=true 時不顯示按鈕狀態，背景靜默更新）
+async function fetchAllPrices(silent=false){
+  if(state.portfolio.length===0)return;
   const btn=document.getElementById("refreshBtn");
-  if(btn){btn.textContent="更新中...";btn.disabled=true;}
-  priceCache={};
+  if(!silent&&btn){btn.textContent="更新中...";btn.disabled=true;}
   await Promise.all(state.portfolio.map(async p=>{
     if(p.type==="us")return fetchStockPrice(p.symbol);
     if(p.type==="crypto")return fetchCryptoPrice(CRYPTO_ID_MAP[p.symbol]||p.symbol.toLowerCase());
   }));
+  if(!silent&&btn){btn.textContent="⟳ 刷新即時報價";btn.disabled=false;}
   render();
-};
+}
+
+window.refreshPrices=()=>fetchAllPrices(false);
+
+// 自動背景更新（每5分鐘）
+let autoRefreshTimer=null;
+function startAutoRefresh(){
+  if(autoRefreshTimer)clearInterval(autoRefreshTimer);
+  fetchAllPrices(true); // 登入後立即抓一次
+  autoRefreshTimer=setInterval(()=>fetchAllPrices(true),5*60*1000);
+}
+function stopAutoRefresh(){
+  if(autoRefreshTimer){clearInterval(autoRefreshTimer);autoRefreshTimer=null;}
+}
 
 function saveToCloud(){if(!user)return;clearTimeout(saveTimer);saveTimer=setTimeout(async()=>{try{await setDoc(doc(db,"users",user.uid),state);}catch(e){console.error(e);}},800);}
 function subscribeUser(uid){if(unsub)unsub();unsub=onSnapshot(doc(db,"users",uid),snap=>{if(snap.exists()){const d=snap.data();state.accounts=d.accounts||INIT_ACC;state.entries=d.entries||[];state.credits=d.credits||[];state.portfolio=d.portfolio||[];state.monthlySnapshots=d.monthlySnapshots||{};}checkRollup();render();});}
-onAuthStateChanged(auth,u=>{user=u;if(u)subscribeUser(u.uid);else render();});
+onAuthStateChanged(auth,u=>{user=u;if(u){subscribeUser(u.uid);startAutoRefresh();}else{stopAutoRefresh();render();}});
 async function login(){try{await signInWithPopup(auth,new GoogleAuthProvider());}catch(e){alert("登入失敗："+e.message);}}
 async function logout(){if(unsub)unsub();await signOut(auth);render();}
 
