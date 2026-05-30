@@ -140,12 +140,14 @@ function subscribeUser(uid){
     }
     checkRollup();
     render();
-    // Firebase 資料第一次載入完成後才抓報價，確保 portfolio 有資料
+    // Firebase 資料第一次載入完成後才抓報價，稍等 800ms 確保資料穩定
     if(firstLoad){
       firstLoad=false;
-      fetchAllPrices(true);
-      if(autoRefreshTimer)clearInterval(autoRefreshTimer);
-      autoRefreshTimer=setInterval(()=>fetchAllPrices(true),5*60*1000);
+      setTimeout(()=>{
+        fetchAllPrices(true);
+        if(autoRefreshTimer)clearInterval(autoRefreshTimer);
+        autoRefreshTimer=setInterval(()=>fetchAllPrices(true),5*60*1000);
+      },800);
     }
   });
 }
@@ -317,6 +319,9 @@ function invCard(p,type){
   if(isCrypto&&livePrice){const costUSD=p.costPerUnit/usdTwd;pct=(livePrice-costUSD)/costUSD*100;}
   const pctColor=pct===null?"var(--text3)":pct>=0?"#00d4a0":"#f87171";
   const pctStr=pct===null?"—":(pct>=0?"+":"")+pct.toFixed(2)+"%";
+  // 損益實際金額（TWD）
+  let pnlTWD="—";
+  if(pct!==null){const mktVal=isUS?(livePrice*p.units*usdTwd):(livePrice*p.units*usdTwd);const costVal=isUS?p.costPerUnit*p.units*usdTwd:p.costPerUnit*p.units/usdTwd*usdTwd;const diff=mktVal-costVal;pnlTWD=(diff>=0?"+":"")+fmt(Math.round(diff));}
   let mktTWD=null,mktUSD=null;
   if(isUS){mktUSD=livePrice?livePrice*p.units:null;mktTWD=mktUSD?mktUSD*usdTwd:p.costPerUnit*p.units*usdTwd;}
   if(isCrypto){mktTWD=livePrice?livePrice*p.units*usdTwd:p.costPerUnit*p.units;}
@@ -338,7 +343,7 @@ function invCard(p,type){
       <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">均攤成本</div><div style="font-size:13px;font-weight:600;color:var(--text2);">${isUS?fmtUSD(p.costPerUnit):"NT$"+Math.round(p.costPerUnit).toLocaleString()}</div></div>
       ${(isUS||isCrypto)?`
       <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">即時價(USD)</div><div style="font-size:13px;font-weight:600;color:${color};">${livePrice?fmtUSD(livePrice):"—"}</div></div>
-      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">損益</div><div style="font-size:13px;font-weight:700;color:${pctColor};">${pctStr}</div></div>`:`
+      <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">損益(TWD)</div><div style="font-size:13px;font-weight:700;color:${pctColor};">${pnlTWD}</div></div>`:`
       <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">持有數量</div><div style="font-size:13px;font-weight:600;color:${color};">${p.units}${isTW?"股":"單位"}</div></div>
       <div style="background:var(--bg4);border-radius:8px;padding:8px 10px;"><div style="font-size:10px;color:var(--text3);">持倉成本</div><div style="font-size:13px;font-weight:700;color:var(--text1);">${fmt(costTWD)}</div></div>`}
     </div>
@@ -453,6 +458,19 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
     <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 18px;"><span style="font-size:14px;color:var(--text2);font-weight:600;">本月應付合計</span><span style="font-size:20px;font-weight:800;color:#f87171;">${fmt(monthCredit)}</span></div>`;
 
   if(tab==="invest"){
+    // 投資總成本（TWD）
+    const portfolioCost=state.portfolio.reduce((s,p)=>{
+      return s+(p.type==="us"?p.costPerUnit*p.units*usdTwd:p.costPerUnit*p.units);
+    },0);
+    // 投資目前估值（有即時價用即時價，沒有用成本估算）
+    const portfolioValue2=state.portfolio.reduce((s,p)=>{
+      if(p.type==="us"){const c=priceCache[p.symbol];return s+(c?.price?c.price*p.units*usdTwd:p.costPerUnit*p.units*usdTwd);}
+      if(p.type==="crypto"){const cgId=CRYPTO_ID_MAP[p.symbol]||p.symbol.toLowerCase();const c=priceCache["crypto_"+cgId];return s+(c?.price?c.price*p.units*usdTwd:p.costPerUnit*p.units);}
+      return s+p.costPerUnit*p.units;
+    },0);
+    const portfolioPnl=portfolioValue2-portfolioCost;
+    const portfolioPnlPct=portfolioCost>0?((portfolioPnl/portfolioCost*100).toFixed(2)+"%"):"—";
+    const portfolioValue=portfolioValue2;
     const types=["us","crypto","tw","fund"];
     const sections=types.map(type=>{
       const list=mergePortfolio(state.portfolio.filter(p=>p.type===type));
@@ -494,11 +512,21 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
         <button id="refreshBtn" onclick="refreshPrices()" style="padding:8px 18px;border-radius:10px;background:linear-gradient(135deg,#4f8ef7,#2563eb);color:#fff;font-size:13px;font-weight:700;">⟳ 刷新即時報價</button>
       </div>
       ${sections}
-      <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 18px;">
-        <span style="font-size:14px;color:var(--text2);">投資組合總估值（TWD）</span>
-        <span style="font-size:20px;font-weight:800;color:#a78bfa;">${fmt(portfolioValue)}</span>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-size:13px;color:var(--text2);">投資總成本</span>
+          <span style="font-size:16px;font-weight:700;color:var(--text1);">${fmt(portfolioCost)}</span>
+        </div>
+        <div style="height:1px;background:var(--border);margin-bottom:10px;"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text2);">目前估值</span>
+          <div style="text-align:right;">
+            <div style="font-size:18px;font-weight:800;color:#a78bfa;">${fmt(portfolioValue)}</div>
+            <div style="font-size:13px;font-weight:700;color:${portfolioPnl>=0?"#00d4a0":"#f87171"};">${portfolioPnl>=0?"+":""}${fmt(portfolioPnl)} (${portfolioPnlPct})</div>
+          </div>
+        </div>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:6px;text-align:right;">即時匯率：1 USD = ${usdTwd.toFixed(2)} TWD · Yahoo Finance / CoinGecko</div>`;
+      <div style="font-size:11px;color:var(--text3);text-align:right;">即時匯率：1 USD = ${usdTwd.toFixed(2)} TWD · Yahoo Finance / CoinGecko</div>`;
   }
 
   if(tab==="charts"){
