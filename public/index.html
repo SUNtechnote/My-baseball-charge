@@ -51,7 +51,7 @@ button{cursor:pointer;font-size:15px;font-weight:500;border:none;touch-action:ma
 </style>
 <script type="module">
 import { initializeApp } from "https://cdn.jsdelivr.net/npm/firebase@10.12.0/app/+esm";
-import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://cdn.jsdelivr.net/npm/firebase@10.12.0/auth/+esm";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://cdn.jsdelivr.net/npm/firebase@10.12.0/auth/+esm";
 import { getFirestore, doc, setDoc, onSnapshot } from "https://cdn.jsdelivr.net/npm/firebase@10.12.0/firestore/+esm";
 
 const fbApp=initializeApp({apiKey:"AIzaSyDZhrjrg6vIW7Fqld-OmV3rbmTRDAndvZo",authDomain:"my-baseball-charge.firebaseapp.com",projectId:"my-baseball-charge",storageBucket:"my-baseball-charge.firebasestorage.app",messagingSenderId:"972554550098",appId:"1:972554550098:web:7170e4e575d9d56d8d988b"});
@@ -149,7 +149,17 @@ function subscribeUser(uid){
 }
 onAuthStateChanged(auth,u=>{user=u;if(u){subscribeUser(u.uid);}else{stopAutoRefresh();render();}});
 getRedirectResult(auth).catch(e=>{if(e?.code&&e.code!=="auth/no-auth-event")alert("登入失敗："+e.message);});
-async function login(){try{await signInWithRedirect(auth,new GoogleAuthProvider());}catch(e){alert("登入失敗："+e.message);}}
+async function login(){
+  try{
+    await signInWithPopup(auth,new GoogleAuthProvider());
+  }catch(e){
+    if(e?.code==="auth/popup-blocked"||e?.code==="auth/operation-not-supported-in-this-environment"){
+      try{await signInWithRedirect(auth,new GoogleAuthProvider());}catch(e2){alert("登入失敗："+e2.message);}
+    }else if(e?.code!=="auth/popup-closed-by-user"&&e?.code!=="auth/cancelled-popup-request"){
+      alert("登入失敗："+e.message);
+    }
+  }
+}
 async function logout(){if(unsub)unsub();await signOut(auth);render();}
 
 function checkRollup(){
