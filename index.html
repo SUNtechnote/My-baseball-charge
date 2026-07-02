@@ -2,27 +2,36 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <title>個人財務記分板</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="記帳">
+<meta name="theme-color" content="#0a0a14">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 :root{--bg1:#0a0a14;--bg2:#12121f;--bg3:#1a1a2e;--bg4:#22223a;--accent:#00d4a0;--border:#2a2a45;--text1:#f0f0ff;--text2:#a0a0c0;--text3:#606080;}
-body{background:var(--bg1);color:var(--text1);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;}
-input,select{display:block;width:100%;font-size:15px;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg4);color:var(--text1);margin-top:4px;transition:border .2s;}
+html,body{background:var(--bg1);overscroll-behavior-y:none;}
+body{color:var(--text1);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;}
+input,select{display:block;width:100%;font-size:16px;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg4);color:var(--text1);margin-top:4px;transition:border .2s;}
 input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,160,.15);}
 select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23606080' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
 option{background:#1a1a2e;}
-button{cursor:pointer;font-size:15px;font-weight:500;border:none;}
+button{cursor:pointer;font-size:15px;font-weight:500;border:none;touch-action:manipulation;}
 .btn-green{padding:10px 20px;border-radius:10px;background:linear-gradient(135deg,#00d4a0,#00b386);color:#000;font-weight:700;}
 .btn-del{background:none;color:var(--text3);font-size:22px;padding:0 6px;line-height:1;}
-.card{background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:18px 20px;}
+.card{background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:16px;}
 .label{font-size:12px;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;}
 .row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);}
 .tag{font-size:11px;padding:2px 9px;border-radius:20px;font-weight:600;}
-.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;}
+.grid3{display:grid;grid-template-columns:1fr;gap:10px;}
+.grid2{display:grid;grid-template-columns:1fr;gap:10px;}
+.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;}
 .stat-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent-line,var(--accent));}
 .glow-line{height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);margin:18px 0;opacity:.4;}
 .prog-track{height:5px;border-radius:5px;background:var(--bg4);margin-top:10px;}
@@ -31,31 +40,18 @@ button{cursor:pointer;font-size:15px;font-weight:500;border:none;}
 ::-webkit-scrollbar{width:6px;height:4px;}
 ::-webkit-scrollbar-track{background:var(--bg2);}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
-#desktop-wrap{display:block;}
-#mobile-header,#mobile-content,#side-menu,#overlay{display:none;}
-.tabbar{display:flex;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:28px;padding:5px;overflow-x:auto;margin-bottom:20px;}
-.tabbar::-webkit-scrollbar{height:0;}
-.tab{padding:9px 18px;border-radius:22px;border:none;font-size:14px;font-weight:600;white-space:nowrap;transition:all .2s;background:transparent;color:var(--text2);}
-.tab.active{background:linear-gradient(135deg,#00d4a0,#00b386);color:#000;}
-@media(max-width:600px){
-  #desktop-wrap{display:none;}
-  #mobile-header{display:flex;align-items:center;justify-content:space-between;position:fixed;top:0;left:0;right:0;height:56px;padding:0 16px;background:var(--bg2);border-bottom:1px solid var(--border);z-index:100;}
-  #mobile-content{display:block;padding:72px 16px max(100px,calc(100px + env(safe-area-inset-bottom)));}
-  #side-menu{display:block;position:fixed;top:0;left:0;width:72%;max-width:260px;height:100vh;background:var(--bg2);border-right:1px solid var(--border);z-index:300;transform:translateX(-100%);transition:transform .28s cubic-bezier(.4,0,.2,1);padding-top:56px;}
-  #side-menu.open{transform:translateX(0);}
-  #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:299;}
-  #overlay.open{display:block;}
-  .menu-item{display:flex;align-items:center;gap:14px;padding:16px 20px;font-size:16px;font-weight:600;color:var(--text1);border:none;background:none;width:100%;text-align:left;cursor:pointer;border-bottom:1px solid var(--bg3);}
-  .menu-item.active{color:var(--accent);}
-  .grid3{grid-template-columns:1fr!important;}
-  .grid2{grid-template-columns:1fr!important;}
-  .stat-card{padding:16px 18px!important;}
-  .card{padding:16px!important;}
-}
+#mobile-header{display:flex;align-items:center;justify-content:space-between;position:fixed;top:0;left:0;right:0;height:calc(56px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 16px 0;background:var(--bg2);border-bottom:1px solid var(--border);z-index:100;touch-action:manipulation;}
+#mobile-content{display:block;padding:calc(72px + env(safe-area-inset-top)) 16px max(100px,calc(100px + env(safe-area-inset-bottom)));}
+#side-menu{display:block;position:fixed;top:0;left:0;width:72%;max-width:260px;height:100vh;background:var(--bg2);border-right:1px solid var(--border);z-index:300;transform:translateX(-100%);transition:transform .28s cubic-bezier(.4,0,.2,1);padding-top:calc(56px + env(safe-area-inset-top));}
+#side-menu.open{transform:translateX(0);}
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:299;}
+#overlay.open{display:block;}
+.menu-item{display:flex;align-items:center;gap:14px;padding:16px 20px;font-size:16px;font-weight:600;color:var(--text1);border:none;background:none;width:100%;text-align:left;cursor:pointer;border-bottom:1px solid var(--bg3);touch-action:manipulation;}
+.menu-item.active{color:var(--accent);}
 </style>
 <script type="module">
 import { initializeApp } from "https://cdn.jsdelivr.net/npm/firebase@10.12.0/app/+esm";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://cdn.jsdelivr.net/npm/firebase@10.12.0/auth/+esm";
+import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://cdn.jsdelivr.net/npm/firebase@10.12.0/auth/+esm";
 import { getFirestore, doc, setDoc, onSnapshot } from "https://cdn.jsdelivr.net/npm/firebase@10.12.0/firestore/+esm";
 
 const fbApp=initializeApp({apiKey:"AIzaSyDZhrjrg6vIW7Fqld-OmV3rbmTRDAndvZo",authDomain:"my-baseball-charge.firebaseapp.com",projectId:"my-baseball-charge",storageBucket:"my-baseball-charge.firebasestorage.app",messagingSenderId:"972554550098",appId:"1:972554550098:web:7170e4e575d9d56d8d988b"});
@@ -152,7 +148,8 @@ function subscribeUser(uid){
   });
 }
 onAuthStateChanged(auth,u=>{user=u;if(u){subscribeUser(u.uid);}else{stopAutoRefresh();render();}});
-async function login(){try{await signInWithPopup(auth,new GoogleAuthProvider());}catch(e){alert("登入失敗："+e.message);}}
+getRedirectResult(auth).catch(e=>{if(e?.code&&e.code!=="auth/no-auth-event")alert("登入失敗："+e.message);});
+async function login(){try{await signInWithRedirect(auth,new GoogleAuthProvider());}catch(e){alert("登入失敗："+e.message);}}
 async function logout(){if(unsub)unsub();await signOut(auth);render();}
 
 function checkRollup(){
@@ -193,9 +190,7 @@ window.saveEdit=id=>{
 };
 
 function getVal(id){
-  const els=Array.from(document.querySelectorAll(`[data-fid="${id}"]`));
-  const vis=els.find(el=>{const s=window.getComputedStyle(el.closest("#desktop-wrap")||el.closest("#mobile-content")||el);return s.display!=="none";});
-  return (vis||els[0])?.value??"";
+  return document.querySelector(`[data-fid="${id}"]`)?.value??"";
 }
 
 window.submitEntry=()=>{const amt=+getVal("eAmt");if(!amt||amt<=0){alert("請輸入有效金額");return;}mut(()=>state.entries.unshift({id:Date.now(),date:getVal("eDate"),amt,cat:getVal("eCat"),note:getVal("eNote")}));};
@@ -251,16 +246,8 @@ function mergePortfolio(list){
 }
 
 const charts={};
-function getActiveWrap(){
-  const mobile=document.getElementById("mobile-content");
-  const desktop=document.getElementById("desktop-wrap");
-  if(mobile&&window.getComputedStyle(mobile).display!=="none")return mobile;
-  if(desktop&&window.getComputedStyle(desktop).display!=="none")return desktop;
-  return document;
-}
-function getActiveCanvas(chartName){return getActiveWrap().querySelector(`canvas[data-chart="${chartName}"]`);}
 function drawPie(chartName,labels,data,colors){
-  const canvas=getActiveCanvas(chartName);
+  const canvas=document.querySelector(`canvas[data-chart="${chartName}"]`);
   if(!canvas||!window.Chart)return;
   if(charts[chartName]){charts[chartName].destroy();delete charts[chartName];}
   charts[chartName]=new window.Chart(canvas,{
@@ -560,11 +547,10 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
 function render(){
   const root=document.getElementById("root");
   if(!root)return;
-  if(!user){root.innerHTML=`<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#12121f,#0a0a14);"><div style="text-align:center;padding:40px;"><div style="font-size:64px;margin-bottom:16px;filter:drop-shadow(0 0 20px #00d4a060);">⚾</div><div style="font-size:26px;font-weight:900;margin-bottom:6px;">個人財務記分板</div><div style="font-size:13px;color:var(--text3);margin-bottom:36px;letter-spacing:1px;">PERSONAL FINANCE SCOREBOARD</div><button onclick="login()" style="padding:14px 36px;border-radius:12px;background:linear-gradient(135deg,#00d4a0,#00b386);color:#000;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 0 24px rgba(0,212,160,.3);">使用 Google 帳號登入</button><div style="margin-top:16px;font-size:12px;color:var(--text3);">資料加密存於 Firebase · 僅你可見</div></div></div>`;return;}
+  if(!user){root.innerHTML=`<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#12121f,#0a0a14);padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);"><div style="text-align:center;padding:40px;"><div style="font-size:64px;margin-bottom:16px;filter:drop-shadow(0 0 20px #00d4a060);">⚾</div><div style="font-size:26px;font-weight:900;margin-bottom:6px;">個人財務記分板</div><div style="font-size:13px;color:var(--text3);margin-bottom:36px;letter-spacing:1px;">PERSONAL FINANCE SCOREBOARD</div><button onclick="login()" style="padding:14px 36px;border-radius:12px;background:linear-gradient(135deg,#00d4a0,#00b386);color:#000;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 0 24px rgba(0,212,160,.3);">使用 Google 帳號登入</button><div style="margin-top:16px;font-size:12px;color:var(--text3);">資料加密存於 Firebase · 僅你可見</div></div></div>`;return;}
   const{me,totalBank,monthInc,monthExp,monthCredit,savings,avg,portfolioValue,totalAssets}=calc();
   const content=buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,portfolioValue,totalAssets);
   const curTab=TABS.find(t=>t.id===tab)||TABS[0];
-  const tabBar=`<div class="tabbar">${TABS.map(t=>`<button class="tab${tab===t.id?" active":""}" onclick="setTab('${t.id}')">${t.icon} ${t.label}</button>`).join("")}</div>`;
   root.innerHTML=`
     <div id="mobile-header">
       <button onclick="openMenu()" style="background:none;border:none;color:var(--text1);font-size:26px;padding:4px 8px;line-height:1;cursor:pointer;">☰</button>
@@ -577,20 +563,7 @@ function render(){
       <button class="menu-item" onclick="logout()" style="color:#f87171;margin-top:8px;">🚪 登出</button>
     </div>
     <div id="overlay" onclick="closeMenu()"></div>
-    <div id="mobile-content">${content}</div>
-    <div id="desktop-wrap" style="max-width:760px;margin:0 auto;padding:20px 16px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
-        <div style="font-size:32px;filter:drop-shadow(0 0 12px #00d4a080);">⚾</div>
-        <div><div style="font-size:22px;font-weight:900;letter-spacing:-.5px;">個人財務記分板</div><div style="font-size:12px;color:var(--text3);letter-spacing:.5px;">PERSONAL FINANCE SCOREBOARD</div></div>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:16px;">
-          <div style="text-align:right;"><div style="font-size:11px;color:var(--text3);">總資產</div><div style="font-size:20px;font-weight:900;color:var(--accent);">${fmt(totalAssets)}</div></div>
-          <div style="text-align:right;"><div style="font-size:12px;color:var(--text2);">${user.displayName||""}</div><button onclick="logout()" style="font-size:12px;color:var(--text3);background:none;border:none;cursor:pointer;">登出</button></div>
-        </div>
-      </div>
-      ${tabBar}
-      <div>${content}</div>
-      <div style="margin-top:24px;font-size:11px;color:var(--text3);text-align:center;">⚾ 個人財務記分板 · Firebase 雲端同步</div>
-    </div>`;
+    <div id="mobile-content">${content}</div>`;
   if(tab==="charts"){
     requestAnimationFrame(()=>{setTimeout(()=>{renderCharts(me,totalBank,monthInc,monthExp,monthCredit,portfolioValue);},100);});
   }
