@@ -79,7 +79,7 @@ const fmtUSD=n=>"US$"+n.toLocaleString(undefined,{minimumFractionDigits:2,maximu
 const today=()=>new Date().toISOString().slice(0,10);
 const todayM=()=>today().slice(0,7);
 
-let state={accounts:INIT_ACC,entries:[],credits:[],portfolio:[],monthlySnapshots:{}};
+let state={accounts:INIT_ACC,entries:[],credits:[],portfolio:[],monthlySnapshots:{},transfers:[]};
 let tab="dashboard",filterMonth=todayM(),user=null,unsub=null,saveTimer=null,usdTwd=31.5;
 let editingId=null;
 
@@ -133,6 +133,7 @@ function subscribeUser(uid){
       state.credits=d.credits||[];
       state.portfolio=d.portfolio||[];
       state.monthlySnapshots=d.monthlySnapshots||{};
+      state.transfers=d.transfers||[];
     }
     checkRollup();
     render();
@@ -205,6 +206,30 @@ function getVal(id){
 
 window.submitEntry=()=>{const amt=+getVal("eAmt");if(!amt||amt<=0){alert("請輸入有效金額");return;}mut(()=>state.entries.unshift({id:Date.now(),date:getVal("eDate"),amt,cat:getVal("eCat"),note:getVal("eNote")}));};
 window.submitAddAcc=()=>{const name=getVal("accName").trim();if(!name){alert("請輸入帳戶名稱");return;}mut(()=>state.accounts.push({id:Date.now(),name,balance:+getVal("accBal")||0,mlb:state.accounts.length%MLB.length}));};
+window.submitTransfer=()=>{
+  const from=+getVal("trFrom"),to=+getVal("trTo"),amount=+getVal("trAmt"),note=getVal("trNote");
+  if(!from||!to||from===to){alert("請選擇不同的來源與目標帳戶");return;}
+  if(!amount||amount<=0){alert("請輸入有效金額");return;}
+  mut(()=>{
+    state.accounts=state.accounts.map(a=>{
+      if(a.id===from)return{...a,balance:a.balance-amount};
+      if(a.id===to)return{...a,balance:a.balance+amount};
+      return a;
+    });
+    state.transfers.unshift({id:Date.now(),from,to,amount,date:today(),note});
+  });
+};
+window.delTransfer=id=>mut(()=>{
+  const t=state.transfers.find(x=>x.id===id);
+  if(t){
+    state.accounts=state.accounts.map(a=>{
+      if(a.id===t.from)return{...a,balance:a.balance+t.amount};
+      if(a.id===t.to)return{...a,balance:a.balance-t.amount};
+      return a;
+    });
+  }
+  state.transfers=state.transfers.filter(x=>x.id!==id);
+});
 window.submitCred=()=>{const name=getVal("cName").trim(),total=+getVal("cTotal"),inst=+getVal("cInst")||1,startDate=getVal("cStart");if(!name||!total){alert("請輸入消費名稱與總金額");return;}mut(()=>state.credits.push({id:Date.now(),name,total,installments:inst,startDate}));};
 window.submitPort=()=>{
   const symbol=getVal("pSym").trim().toUpperCase();
@@ -297,6 +322,7 @@ function renderCharts(me,totalBank,monthInc,monthExp,monthCredit,portfolioValue)
 }
 
 function mlbBadge(idx){const[bg,tc,lb]=MLB[idx%MLB.length];return `<div class="mlb-badge" style="background:${bg};color:${tc};">${lb}</div>`;}
+const accName=id=>state.accounts.find(a=>a.id===id)?.name||"（已刪除帳戶）";
 const lbl=t=>`<div class="label" style="margin-bottom:2px;">${t}</div>`;
 const sc=(label,value,color,accent)=>`<div class="stat-card" style="--accent-line:${accent||color||"var(--accent)"}"><div style="font-size:12px;color:var(--text2);margin-bottom:6px;">${label}</div><div style="font-size:20px;font-weight:700;color:${color||"var(--text1)"};">${value}</div></div>`;
 const dot=(c,l,v)=>`<span style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text2);"><span style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block;"></span>${l}${v?` <strong style="color:var(--text1);">${v}</strong>`:""}</span>`;
@@ -409,10 +435,30 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
       <button class="btn-green" onclick="submitAddAcc()">新增</button>
     </div>
     <div class="glow-line"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 18px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:18px;">
       <span style="font-size:15px;color:var(--text2);font-weight:600;">帳戶總計</span>
       <span style="font-size:22px;font-weight:800;color:#4f8ef7;">${fmt(totalBank)}</span>
-    </div>`;
+    </div>
+    <div class="card" style="margin-bottom:18px;">
+      <div style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--accent);">💸 轉帳</div>
+      <div class="grid2" style="margin-bottom:10px;">
+        <div>${lbl("從")}<select data-fid="trFrom">${state.accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join("")}</select></div>
+        <div>${lbl("到")}<select data-fid="trTo">${state.accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join("")}</select></div>
+      </div>
+      <div style="margin-bottom:10px;">${lbl("金額 (NT$)")}<input type="number" data-fid="trAmt" placeholder="0"></div>
+      <div style="margin-bottom:14px;">${lbl("備註（選填）")}<input type="text" data-fid="trNote" placeholder="加碼進場、獲利了結出金..."></div>
+      <button class="btn-green" onclick="submitTransfer()" style="width:100%;padding:13px;font-size:16px;">確認轉帳</button>
+    </div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:8px;font-weight:600;">轉帳紀錄</div>
+    ${state.transfers.length===0?`<div style="font-size:14px;color:var(--text3);padding:16px 0;text-align:center;">尚無轉帳紀錄。</div>`:""}
+    ${state.transfers.map(t=>`<div class="row">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;">${accName(t.from)} → ${accName(t.to)}${t.note?`<span style="font-size:11px;color:var(--text3);margin-left:6px;">· ${t.note}</span>`:""}</div>
+        <div style="font-size:11px;color:var(--text3);">${t.date}</div>
+      </div>
+      <div style="font-size:14px;font-weight:700;color:#4f8ef7;flex-shrink:0;">${fmt(t.amount)}</div>
+      <button class="btn-del" onclick="delTransfer(${t.id})">×</button>
+    </div>`).join("")}`;
 
   if(tab==="log") return `
     <div class="card" style="margin-bottom:18px;">
