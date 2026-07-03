@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="記帳">
-<meta name="theme-color" content="#0a0a14">
+<meta name="theme-color" content="#2f9fd6">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -15,39 +15,41 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-:root{--bg1:#0a0a14;--bg2:#12121f;--bg3:#1a1a2e;--bg4:#22223a;--accent:#00d4a0;--border:#2a2a45;--text1:#f0f0ff;--text2:#a0a0c0;--text3:#606080;}
-html,body{background:var(--bg1);overscroll-behavior-y:none;}
-body{color:var(--text1);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;}
+:root{--bg1:#eaf6ff;--bg2:#ffffff;--bg3:#ffffff;--bg4:#f2f9ff;--accent:#ff5c39;--accent2:#4ade80;--border:#c8f0d8;--text1:#1e293b;--text2:#334155;--text3:#4b5b70;}
+html,body{overscroll-behavior-y:none;}
+body{color:var(--text1);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;background:linear-gradient(180deg,#eaf6ff 0%,#2f9fd6 55%,#fef9e7 100%);background-attachment:fixed;position:relative;}
+body::before{content:"";position:fixed;top:-10%;right:-10%;width:60vw;height:60vw;max-width:520px;max-height:520px;border-radius:50%;background:radial-gradient(circle,rgba(255,224,140,.55),rgba(255,224,140,0) 70%);pointer-events:none;z-index:0;}
+#root{position:relative;z-index:1;}
 input,select,textarea{display:block;width:100%;font-size:16px;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg4);color:var(--text1);margin-top:4px;transition:border .2s;font-family:inherit;}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,160,.15);}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,92,57,.18);}
 textarea{resize:vertical;min-height:80px;}
-select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23606080' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
-option{background:#1a1a2e;}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23475569' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+option{background:#ffffff;color:#1e293b;}
 button{cursor:pointer;font-size:15px;font-weight:500;border:none;touch-action:manipulation;}
-.btn-green{padding:10px 20px;border-radius:10px;background:linear-gradient(135deg,#00d4a0,#00b386);color:#000;font-weight:700;}
+.btn-green{padding:10px 20px;border-radius:10px;background:linear-gradient(135deg,#ff5c39,#ff8a5c);color:#fff;font-weight:700;box-shadow:0 4px 14px rgba(255,92,57,.32);}
 .btn-del{background:none;color:var(--text3);font-size:22px;padding:0 6px;line-height:1;}
-.card{background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:16px;}
+.card{background:var(--bg3);border:1.5px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 2px 10px rgba(30,41,59,.06);}
 .label{font-size:12px;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;}
 .row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);}
 .tag{font-size:11px;padding:2px 9px;border-radius:20px;font-weight:600;}
 .grid3{display:grid;grid-template-columns:1fr;gap:10px;}
 .grid2{display:grid;grid-template-columns:1fr;gap:10px;}
-.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;}
+.stat-card{background:var(--bg3);border:1.5px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;box-shadow:0 2px 10px rgba(30,41,59,.06);}
 .stat-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent-line,var(--accent));}
 .glow-line{height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);margin:18px 0;opacity:.4;}
 .prog-track{height:5px;border-radius:5px;background:var(--bg4);margin-top:10px;}
 .prog-fill{height:5px;border-radius:5px;}
-.mlb-badge{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;flex-shrink:0;border:2px solid rgba(255,255,255,.12);}
+.mlb-badge{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;flex-shrink:0;border:2px solid rgba(30,41,59,.12);}
 ::-webkit-scrollbar{width:6px;height:4px;}
 ::-webkit-scrollbar-track{background:var(--bg2);}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
-#mobile-header{display:flex;align-items:center;justify-content:space-between;position:fixed;top:0;left:0;right:0;height:calc(56px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 16px 0;background:var(--bg2);border-bottom:1px solid var(--border);z-index:100;touch-action:manipulation;}
-#mobile-content{display:block;padding:calc(72px + env(safe-area-inset-top)) 16px max(100px,calc(100px + env(safe-area-inset-bottom)));}
-#side-menu{display:block;position:fixed;top:0;left:0;width:72%;max-width:260px;height:100vh;background:var(--bg2);border-right:1px solid var(--border);z-index:300;transform:translateX(-100%);transition:transform .28s cubic-bezier(.4,0,.2,1);padding-top:calc(56px + env(safe-area-inset-top));}
+#mobile-header{display:flex;align-items:center;justify-content:space-between;position:fixed;top:0;left:0;right:0;height:calc(56px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 16px 0;background:rgba(255,255,255,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border);z-index:100;touch-action:manipulation;}
+#mobile-content{display:block;padding:calc(72px + env(safe-area-inset-top)) 16px max(100px,calc(100px + env(safe-area-inset-bottom)));position:relative;z-index:1;}
+#side-menu{display:block;position:fixed;top:0;left:0;width:72%;max-width:260px;height:100vh;background:#ffffff;border-right:1px solid var(--border);z-index:300;transform:translateX(-100%);transition:transform .28s cubic-bezier(.4,0,.2,1);padding-top:calc(56px + env(safe-area-inset-top));}
 #side-menu.open{transform:translateX(0);}
-#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:299;}
+#overlay{display:none;position:fixed;inset:0;background:rgba(30,41,59,.35);z-index:299;}
 #overlay.open{display:block;}
-.menu-item{display:flex;align-items:center;gap:14px;padding:16px 20px;font-size:16px;font-weight:600;color:var(--text1);border:none;background:none;width:100%;text-align:left;cursor:pointer;border-bottom:1px solid var(--bg3);touch-action:manipulation;}
+.menu-item{display:flex;align-items:center;gap:14px;padding:16px 20px;font-size:16px;font-weight:600;color:var(--text1);border:none;background:none;width:100%;text-align:left;cursor:pointer;border-bottom:1px solid var(--border);touch-action:manipulation;}
 .menu-item.active{color:var(--accent);}
 @media (min-width:700px){
   #mobile-content{max-width:640px;margin-left:auto;margin-right:auto;}
@@ -65,7 +67,7 @@ const auth=getAuth(fbApp),db=getFirestore(fbApp);
 const EXPENSE_CATS=["交通","娛樂","購物","帳單","其他支出"];
 const INCOME_CATS=["薪資","其他收入"];
 const ALL_CATS=["餐飲",...INCOME_CATS,...EXPENSE_CATS];
-const CC={餐飲:"#f87171",交通:"#4f8ef7",娛樂:"#fbbf24",購物:"#f472b6",帳單:"#a78bfa",其他支出:"#606080",薪資:"#00d4a0",其他收入:"#00b386"};
+const CC={餐飲:"#f87171",交通:"#4f8ef7",娛樂:"#fbbf24",購物:"#f472b6",帳單:"#a78bfa",其他支出:"#78899e",薪資:"#00d4a0",其他收入:"#00b386"};
 const EXPENSE_CATS_ALL=["餐飲",...EXPENSE_CATS];
 
 const MLB=[["#003087","#fff","NYY"],["#BD3039","#fff","BOS"],["#003831","#EFB21E","OAK"],["#0C2340","#fff","LAD"],["#C41E3A","#fff","STL"],["#EB6E1F","#000","SFG"],["#002D62","#fff","CHC"],["#003278","#fff","HOU"],["#E81828","#fff","CIN"]];
@@ -73,6 +75,7 @@ const INIT_ACC=[{id:2,name:"台新帳戶",balance:3352,mlb:0},{id:3,name:"元大
 const TABS=[{id:"dashboard",icon:"⚡",label:"總覽"},{id:"assets",icon:"🏦",label:"資產"},{id:"log",icon:"📝",label:"記帳"},{id:"credit",icon:"💳",label:"信用卡"},{id:"invest",icon:"📈",label:"投資"},{id:"journal",icon:"📓",label:"交易日誌"},{id:"charts",icon:"📊",label:"圖表"}];
 
 const INV_COLOR={us:"#7c3aed",crypto:"#f59e0b",tw:"#10b981",fund:"#3b82f6"};
+const CASH_CTRL_COLORS=["#7c3aed","#f59e0b","#10b981","#3b82f6","#f472b6","#fbbf24"];
 const INV_LABEL={us:"📈 美股",crypto:"🪙 加密貨幣",tw:"🏢 台股",fund:"💼 基金"};
 const CRYPTO_ID_MAP={BTC:"bitcoin",ETH:"ethereum",USDT:"tether",BNB:"binancecoin",SOL:"solana",XRP:"ripple",USDC:"usd-coin",ADA:"cardano",DOGE:"dogecoin",TRX:"tron",TON:"the-open-network",AVAX:"avalanche-2",SHIB:"shiba-inu",DOT:"polkadot",LINK:"chainlink",MATIC:"matic-network",LTC:"litecoin",BCH:"bitcoin-cash",UNI:"uniswap",ATOM:"cosmos"};
 
@@ -80,12 +83,14 @@ const FINNHUB_KEY="d7rjhj9r01qgahvdrg2gd7rjhj9r01qgahvdrg30";
 let priceCache={};
 
 const fmt=n=>"NT$"+Math.round(n).toLocaleString();
+const fmtPct=(value,total)=>total>0?`${fmt(value)} (${Math.round(value/total*100)}%)`:fmt(value);
 const fmtUSD=n=>"US$"+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 const today=()=>new Date().toISOString().slice(0,10);
 const todayM=()=>today().slice(0,7);
 
 let state={accounts:INIT_ACC,entries:[],credits:[],portfolio:[],monthlySnapshots:{},transfers:[],tradeJournal:[]};
 let tab="dashboard",filterMonth=todayM(),user=null,unsub=null,saveTimer=null,usdTwd=31.5;
+let cashCtrlAccId=null;
 let editingId=null;
 
 async function fetchRate(){try{const r=await fetch("https://api.exchangerate-api.com/v4/latest/USD");const d=await r.json();if(d.rates?.TWD)usdTwd=d.rates.TWD;}catch{}}
@@ -178,7 +183,8 @@ function checkRollup(){
   const expCredit=state.credits.reduce((s,c)=>{const ms=Array.from({length:c.installments},(_,i)=>{const d=new Date(c.startDate);d.setMonth(d.getMonth()+i);return d.toISOString().slice(0,7);});return ms.includes(ym)?s+Math.round(c.total/c.installments):s;},0);
   const exp=expEntries+expCredit;
   if(state.accounts.length>0)state.accounts[0]={...state.accounts[0],balance:state.accounts[0].balance+(inc-exp)};
-  state.monthlySnapshots[ym]={inc,exp,pnl:inc-exp,settledAt:today()};
+  const totalBank=state.accounts.reduce((s,a)=>s+a.balance,0);
+  state.monthlySnapshots[ym]={inc,exp,pnl:inc-exp,settledAt:today(),totalBank};
   saveToCloud();
 }
 
@@ -190,6 +196,7 @@ window.delPort=id=>mut(()=>{state.portfolio=state.portfolio.filter(p=>p.id!==id)
 window.updateAccBal=(id,v)=>mut(()=>state.accounts=state.accounts.map(a=>a.id===id?{...a,balance:+v}:a));
 window.setTab=t=>{tab=t;editingId=null;render();};
 window.setMonth=m=>{filterMonth=m;render();};
+window.setCashCtrlAcc=id=>{cashCtrlAccId=id?+id:null;render();};
 window.login=login;window.logout=logout;
 window.openMenu=()=>{document.getElementById("side-menu")?.classList.add("open");document.getElementById("overlay")?.classList.add("open");};
 window.closeMenu=()=>{document.getElementById("side-menu")?.classList.remove("open");document.getElementById("overlay")?.classList.remove("open");};
@@ -213,12 +220,14 @@ window.saveEditJournal=id=>{
   const size=+document.getElementById("jeid_size_"+id)?.value;
   const tag=document.getElementById("jeid_tag_"+id)?.value.trim();
   const notes=document.getElementById("jeid_notes_"+id)?.value??"";
+  const accountRaw=document.getElementById("jeid_account_"+id)?.value;
+  const account=accountRaw?+accountRaw:null;
   if(!ticker){alert("標的代號不能為空");return;}
   if(!entryPrice||entryPrice<=0){alert("進場價不能為空");return;}
   if(!size||size<=0){alert("部位大小不能為空");return;}
   const j=state.tradeJournal.find(x=>x.id===id);
   if(j&&size<journalFilled(j)){alert(`部位大小不能小於已出場的數量（${journalFilled(j)}）`);return;}
-  mut(()=>state.tradeJournal=state.tradeJournal.map(j=>j.id===id?{...j,date,ticker,direction,entryPrice,size,tag,notes}:j));
+  mut(()=>state.tradeJournal=state.tradeJournal.map(j=>j.id===id?{...j,date,ticker,direction,entryPrice,size,tag,notes,account}:j));
   editingId=null;
 };
 
@@ -245,10 +254,11 @@ window.submitJournal=()=>{
   const date=getVal("jDate"),ticker=getVal("jTicker").trim(),direction=getVal("jDir");
   const entryPrice=+getVal("jEntry"),size=+getVal("jSize");
   const tag=getVal("jTag").trim(),notes=getVal("jNotes");
+  const account=getVal("jAccount")?+getVal("jAccount"):null;
   if(!ticker){alert("請輸入標的代號");return;}
   if(!entryPrice||entryPrice<=0){alert("請輸入有效進場價");return;}
   if(!size||size<=0){alert("請輸入有效部位大小");return;}
-  mut(()=>state.tradeJournal.unshift({id:Date.now(),date,ticker,direction,entryPrice,size,tag,notes,exits:[]}));
+  mut(()=>state.tradeJournal.unshift({id:Date.now(),date,ticker,direction,entryPrice,size,tag,notes,account,exits:[]}));
 };
 window.delJournal=id=>mut(()=>state.tradeJournal=state.tradeJournal.filter(j=>j.id!==id));
 window.addExit=jid=>{
@@ -332,7 +342,23 @@ function drawPie(chartName,labels,data,colors){
   charts[chartName]=new window.Chart(canvas,{
     type:"pie",
     data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0,hoverOffset:6}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const value=ctx.raw<1?0:ctx.raw;return " "+fmt(value);}}}}}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{
+      const value=ctx.raw<1?0:ctx.raw;
+      const total=ctx.dataset.data.reduce((s,v)=>s+(v<1?0:v),0);
+      const pct=total>0?Math.round(value/total*100):0;
+      return ` ${fmt(value)} (${pct}%)`;
+    }}}}}
+  });
+}
+
+function drawLine(chartName,labels,data,color){
+  const canvas=document.querySelector(`canvas[data-chart="${chartName}"]`);
+  if(!canvas||!window.Chart)return;
+  if(charts[chartName]){charts[chartName].destroy();delete charts[chartName];}
+  charts[chartName]=new window.Chart(canvas,{
+    type:"line",
+    data:{labels,datasets:[{data,borderColor:color,backgroundColor:color+"33",fill:true,tension:.25,pointRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>" "+fmt(ctx.raw)}}},scales:{x:{ticks:{color:"#334155"},grid:{color:"rgba(30,41,59,.08)"}},y:{ticks:{color:"#334155"},grid:{color:"rgba(30,41,59,.08)"}}}}
   });
 }
 
@@ -349,7 +375,7 @@ function renderCharts(me,totalBank,monthInc,monthExp,monthCredit,portfolioValue)
   drawPie("pie2",
     catLabels.length?catLabels:["尚無支出"],
     catLabels.length?catData:[0.001],
-    catLabels.length?catColors:["#2a2a45"]
+    catLabels.length?catColors:["#dbe4ee"]
   );
 
   // 圖3：資產大類
@@ -363,6 +389,27 @@ function renderCharts(me,totalBank,monthInc,monthExp,monthCredit,portfolioValue)
   if(twVal>0){labels.push("台股");data.push(twVal);colors.push(INV_COLOR.tw);}
   if(fundVal>0){labels.push("基金");data.push(fundVal);colors.push(INV_COLOR.fund);}
   drawPie("pie3",labels,data,colors);
+
+  // 圖4：資金水位走勢（每月快照，累積中）
+  const trendMonths=Object.keys(state.monthlySnapshots).filter(ym=>state.monthlySnapshots[ym].totalBank!=null).sort();
+  if(trendMonths.length>=2){
+    drawLine("fundTrend",trendMonths,trendMonths.map(ym=>state.monthlySnapshots[ym].totalBank),"#00d4a0");
+  }
+
+  // 圖5：股票帳戶現金控制（持股 vs 現金）
+  const accId=cashCtrlAccId??state.accounts[0]?.id;
+  const acc=state.accounts.find(a=>a.id===accId);
+  if(acc){
+    const openPos=state.tradeJournal.filter(j=>j.account===accId&&(j.size-journalFilled(j))>0);
+    const byTicker={};
+    openPos.forEach(j=>{const remain=j.size-journalFilled(j);byTicker[j.ticker]=(byTicker[j.ticker]||0)+remain*j.entryPrice;});
+    const posLabels=Object.keys(byTicker);
+    const posColors=posLabels.map((_,i)=>CASH_CTRL_COLORS[i%CASH_CTRL_COLORS.length]);
+    const labels=[...posLabels,"現金"];
+    const data=[...posLabels.map(t=>byTicker[t]),Math.max(acc.balance,0.001)];
+    const colors=[...posColors,"#4f8ef7"];
+    drawPie("cashCtrl",labels,data,colors);
+  }
 }
 
 function mlbBadge(idx){const[bg,tc,lb]=MLB[idx%MLB.length];return `<div class="mlb-badge" style="background:${bg};color:${tc};">${lb}</div>`;}
@@ -401,7 +448,7 @@ function invCard(p,type){
       <div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
         <span style="font-size:16px;font-weight:700;color:${color};">${p.symbol}</span>
         <span class="tag" style="background:${color}22;color:${color};">${INV_LABEL[type].split(" ")[1]||INV_LABEL[type]}</span>
-        ${merged?`<span class="tag" style="background:rgba(255,255,255,.07);color:var(--text3);">${ids.length}筆合併</span>`:""}
+        ${merged?`<span class="tag" style="background:rgba(30,41,59,.06);color:var(--text3);">${ids.length}筆合併</span>`:""}
       </div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
         ${(isUS||isCrypto)?`<span style="font-size:14px;font-weight:700;color:${pctColor};">${pctStr}</span>`:""}
@@ -452,6 +499,7 @@ function editJournalCard(j){
       <div>${lbl("部位大小")}<input id="jeid_size_${j.id}" type="number" value="${j.size}"></div>
     </div>
     <div style="margin-bottom:10px;">${lbl("進場價")}<input id="jeid_entry_${j.id}" type="number" value="${j.entryPrice}"></div>
+    <div style="margin-bottom:10px;">${lbl("交易帳戶（選填，用於現金水位圖）")}<select id="jeid_account_${j.id}"><option value="">不指定</option>${state.accounts.map(a=>`<option value="${a.id}"${j.account===a.id?" selected":""}>${a.name}</option>`).join("")}</select></div>
     <div style="font-size:11px;color:var(--text3);margin:-6px 0 10px;">出場紀錄請在卡片上直接新增/刪除，這裡只能改買進的基本資料。</div>
     <div style="margin-bottom:10px;">${lbl("策略 / 心得標籤")}<input id="jeid_tag_${j.id}" type="text" value="${j.tag||""}"></div>
     <div style="margin-bottom:14px;">${lbl("交易心得")}<textarea id="jeid_notes_${j.id}">${j.notes||""}</textarea></div>
@@ -470,7 +518,7 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
   if(tab==="dashboard") return `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">${lbl("月份")}<input type="month" value="${filterMonth}" onchange="setMonth(this.value)" style="width:auto;padding:8px 12px;font-size:14px;margin-top:0;"></div>
     <div class="card" style="display:flex;align-items:center;gap:16px;margin-bottom:14px;border-top:2px solid var(--accent);">
-      <div style="font-size:40px;filter:drop-shadow(0 0 12px #00d4a060);">⚾</div>
+      <div style="font-size:40px;filter:drop-shadow(0 0 12px #ff5c3960);">⚾</div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:11px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;">本月儲蓄打擊率</div>
         <div style="font-size:34px;font-weight:900;color:${rankColor};line-height:1.1;">.${String(Math.round(avg*1000)).padStart(3,"0")}</div>
@@ -653,6 +701,7 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
       </div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">多＝先買後賣；空＝先賣後買（放空）。手上已經持有、之後要賣出平倉的話，方向還是填「多」，賣出時用編輯把出場價補上即可，不用改成「空」。</div>
       <div style="margin-bottom:10px;">${lbl("進場價")}<input type="number" data-fid="jEntry" placeholder="0"></div>
+      <div style="margin-bottom:10px;">${lbl("交易帳戶（選填，用於現金水位圖）")}<select data-fid="jAccount"><option value="">不指定</option>${state.accounts.map(a=>`<option value="${a.id}">${a.name}</option>`).join("")}</select></div>
       <div style="margin-bottom:10px;">${lbl("策略 / 心得標籤")}<input data-fid="jTag" placeholder="突破、拉回買、當沖..." type="text"></div>
       <div style="margin-bottom:14px;">${lbl("交易心得")}<textarea data-fid="jNotes" placeholder="這筆為什麼進場、當下怎麼想、事後檢討..."></textarea></div>
       <button class="btn-green" onclick="submitJournal()" style="width:100%;padding:13px;font-size:16px;">新增紀錄</button>
@@ -684,12 +733,12 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
           <div>
             <span style="font-size:15px;font-weight:700;">${j.ticker}</span>
-            <span class="tag" style="background:rgba(255,255,255,.08);color:${dirColor};margin-left:8px;">${dirLabel}</span>
+            <span class="tag" style="background:rgba(30,41,59,.06);color:${dirColor};margin-left:8px;">${dirLabel}</span>
             ${isOpen?`<span class="tag" style="background:rgba(251,191,36,.15);color:#fbbf24;margin-left:4px;">持有中</span>`:`<span class="tag" style="background:rgba(0,212,160,.15);color:#00d4a0;margin-left:4px;">已平倉</span>`}
           </div>
           <button class="btn-del" onclick="event.stopPropagation();delJournal(${j.id})">×</button>
         </div>
-        <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">${j.date}${j.tag?` · ${j.tag}`:""}</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">${j.date}${j.tag?` · ${j.tag}`:""}${j.account?` · ${accName(j.account)}`:""}</div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;font-size:12px;color:var(--text2);">
           <div>買進<br><strong style="color:var(--text1);font-size:14px;">${j.size}</strong></div>
           <div>進場<br><strong style="color:var(--text1);font-size:14px;">${j.entryPrice}</strong></div>
@@ -707,25 +756,55 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
     const cryptoVal=state.portfolio.filter(p=>p.type==="crypto").reduce((s,p)=>s+p.costPerUnit*p.units,0);
     const twVal=state.portfolio.filter(p=>p.type==="tw").reduce((s,p)=>s+p.costPerUnit*p.units,0);
     const fundVal=state.portfolio.filter(p=>p.type==="fund").reduce((s,p)=>s+p.costPerUnit*p.units,0);
+    const totalAssetPie=totalBank+usVal+cryptoVal+twVal+fundVal;
     const assetLegs=[
-      dot("#4f55f7","現金/銀行",fmt(totalBank)),
-      usVal?dot(INV_COLOR.us,"美股",fmt(usVal)):"",
-      cryptoVal?dot(INV_COLOR.crypto,"加密貨幣",fmt(cryptoVal)):"",
-      twVal?dot(INV_COLOR.tw,"台股",fmt(twVal)):"",
-      fundVal?dot(INV_COLOR.fund,"基金",fmt(fundVal)):"",
+      dot("#4f55f7","現金/銀行",fmtPct(totalBank,totalAssetPie)),
+      usVal?dot(INV_COLOR.us,"美股",fmtPct(usVal,totalAssetPie)):"",
+      cryptoVal?dot(INV_COLOR.crypto,"加密貨幣",fmtPct(cryptoVal,totalAssetPie)):"",
+      twVal?dot(INV_COLOR.tw,"台股",fmtPct(twVal,totalAssetPie)):"",
+      fundVal?dot(INV_COLOR.fund,"基金",fmtPct(fundVal,totalAssetPie)):"",
     ].filter(Boolean).join("");
     const cats=EXPENSE_CATS_ALL.filter(c=>me.some(e=>e.cat===c));
     const pie2legs=[
-      ...cats.map(c=>{const v=me.filter(e=>e.cat===c).reduce((s,e)=>s+e.amt,0);return dot(CC[c],c,monthExp>0?Math.round(v/monthExp*100)+"%":"");}),
-      monthCredit>0?dot("#f472b6","信用卡分期",monthExp>0?Math.round(monthCredit/monthExp*100)+"%":""):"",
+      ...cats.map(c=>{const v=me.filter(e=>e.cat===c).reduce((s,e)=>s+e.amt,0);return dot(CC[c],c,fmtPct(v,monthExp));}),
+      monthCredit>0?dot("#f472b6","信用卡分期",fmtPct(monthCredit,monthExp)):"",
     ].filter(Boolean).join("");
     return `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">${lbl("月份")}<input type="month" value="${filterMonth}" onchange="setMonth(this.value)" style="width:auto;padding:8px 12px;font-size:14px;margin-top:0;"></div>
-      ${pieSection("本月收支比","pie1",[dot("#00d4a0","收入",fmt(monthInc)),dot("#f87171","支出",fmt(monthExp))].join(""))}
+      ${pieSection("本月收支比","pie1",[dot("#00d4a0","收入",fmtPct(monthInc,monthInc+monthExp)),dot("#f87171","支出",fmtPct(monthExp,monthInc+monthExp))].join(""))}
       <div class="glow-line"></div>
       ${pieSection("支出分類（含信用卡分期）","pie2",pie2legs)}
       <div class="glow-line"></div>
-      ${pieSection("全部資產大類佔比","pie3",assetLegs)}`;
+      ${pieSection("全部資產大類佔比","pie3",assetLegs)}
+      <div class="glow-line"></div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">資金水位走勢（每月快照）</div>
+      ${(()=>{const n=Object.keys(state.monthlySnapshots).filter(ym=>state.monthlySnapshots[ym].totalBank!=null).length;
+        return n>=2
+          ?`<div style="position:relative;height:220px;"><canvas data-chart="fundTrend"></canvas></div>`
+          :`<div style="font-size:13px;color:var(--text3);padding:16px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;">目前累積 ${n} 個月快照，至少要 2 個月才會開始畫線，之後每個月底會自動多存一筆，慢慢就會看到資金水位的變化。</div>`;
+      })()}
+      <div class="glow-line"></div>
+      ${(()=>{
+        if(state.accounts.length===0)return `<div style="font-size:15px;font-weight:700;margin-bottom:8px;">股票帳戶現金控制</div><div style="font-size:13px;color:var(--text3);">請先到「資產」分頁新增帳戶。</div>`;
+        const accId=cashCtrlAccId??state.accounts[0].id;
+        const acc=state.accounts.find(a=>a.id===accId);
+        const openPos=state.tradeJournal.filter(j=>j.account===accId&&(j.size-journalFilled(j))>0);
+        const byTicker={};
+        openPos.forEach(j=>{const remain=j.size-journalFilled(j);byTicker[j.ticker]=(byTicker[j.ticker]||0)+remain*j.entryPrice;});
+        const posLabels=Object.keys(byTicker);
+        const cashCtrlTotal=posLabels.reduce((s,t)=>s+byTicker[t],0)+(acc?.balance||0);
+        const legs=[
+          ...posLabels.map((t,i)=>dot(CASH_CTRL_COLORS[i%CASH_CTRL_COLORS.length],t,fmtPct(byTicker[t],cashCtrlTotal))),
+          dot("#4f8ef7","現金",fmtPct(acc?.balance||0,cashCtrlTotal)),
+        ].join("");
+        return `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <div style="font-size:15px;font-weight:700;">股票帳戶現金控制</div>
+            <select onchange="setCashCtrlAcc(this.value)" style="width:auto;margin-top:0;padding:6px 10px;font-size:13px;margin-left:auto;">${state.accounts.map(a=>`<option value="${a.id}"${a.id===accId?" selected":""}>${a.name}</option>`).join("")}</select>
+          </div>
+          ${posLabels.length===0?`<div style="font-size:13px;color:var(--text3);margin-bottom:10px;">這個帳戶目前沒有連結到還在持有的交易紀錄（新增交易紀錄時要選這個帳戶）。</div>`:""}
+          ${pieSection("","cashCtrl",legs)}`;
+      })()}`;
   }
   return "";
 }
@@ -733,7 +812,7 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
 function render(){
   const root=document.getElementById("root");
   if(!root)return;
-  if(!user){root.innerHTML=`<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#12121f,#0a0a14);padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);"><div style="text-align:center;padding:40px;"><div style="font-size:64px;margin-bottom:16px;filter:drop-shadow(0 0 20px #00d4a060);">⚾</div><div style="font-size:26px;font-weight:900;margin-bottom:6px;">個人財務記分板</div><div style="font-size:13px;color:var(--text3);margin-bottom:36px;letter-spacing:1px;">PERSONAL FINANCE SCOREBOARD</div><button onclick="login()" style="padding:14px 36px;border-radius:12px;background:linear-gradient(135deg,#00d4a0,#00b386);color:#000;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 0 24px rgba(0,212,160,.3);">使用 Google 帳號登入</button><div style="margin-top:16px;font-size:12px;color:var(--text3);">資料加密存於 Firebase · 僅你可見</div></div></div>`;return;}
+  if(!user){root.innerHTML=`<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#fef9e7,#2f9fd6);padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);"><div style="text-align:center;padding:40px;"><div style="font-size:64px;margin-bottom:16px;filter:drop-shadow(0 0 20px #ff5c3960);">⚾</div><div style="font-size:26px;font-weight:900;margin-bottom:6px;color:#1e293b;">個人財務記分板</div><div style="font-size:13px;color:#334155;margin-bottom:36px;letter-spacing:1px;">PERSONAL FINANCE SCOREBOARD</div><button onclick="login()" style="padding:14px 36px;border-radius:12px;background:linear-gradient(135deg,#ff5c39,#ff8a5c);color:#fff;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 4px 20px rgba(255,92,57,.38);">使用 Google 帳號登入</button><div style="margin-top:16px;font-size:12px;color:#3f4f63;">資料加密存於 Firebase · 僅你可見</div></div></div>`;return;}
   const{me,totalBank,monthInc,monthExp,monthCredit,savings,avg,portfolioValue,totalAssets}=calc();
   const content=buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,portfolioValue,totalAssets);
   const curTab=TABS.find(t=>t.id===tab)||TABS[0];
@@ -757,8 +836,8 @@ function render(){
 </script>
 </head>
 <body>
-<div id="root" style="min-height:100vh;display:flex;align-items:center;justify-content:center;">
-  <div style="color:#606080;font-size:15px;">⚾ 連接中...</div>
+<div id="root" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#eaf6ff 0%,#2f9fd6 55%,#fef9e7 100%);">
+  <div style="color:#334155;font-size:15px;">⚾ 連接中...</div>
 </div>
 </body>
 </html>
