@@ -18,8 +18,9 @@
 :root{--bg1:#0a0a14;--bg2:#12121f;--bg3:#1a1a2e;--bg4:#22223a;--accent:#00d4a0;--border:#2a2a45;--text1:#f0f0ff;--text2:#a0a0c0;--text3:#606080;}
 html,body{background:var(--bg1);overscroll-behavior-y:none;}
 body{color:var(--text1);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;}
-input,select{display:block;width:100%;font-size:16px;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg4);color:var(--text1);margin-top:4px;transition:border .2s;}
-input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,160,.15);}
+input,select,textarea{display:block;width:100%;font-size:16px;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg4);color:var(--text1);margin-top:4px;transition:border .2s;font-family:inherit;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,160,.15);}
+textarea{resize:vertical;min-height:80px;}
 select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23606080' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
 option{background:#1a1a2e;}
 button{cursor:pointer;font-size:15px;font-weight:500;border:none;touch-action:manipulation;}
@@ -48,6 +49,10 @@ button{cursor:pointer;font-size:15px;font-weight:500;border:none;touch-action:ma
 #overlay.open{display:block;}
 .menu-item{display:flex;align-items:center;gap:14px;padding:16px 20px;font-size:16px;font-weight:600;color:var(--text1);border:none;background:none;width:100%;text-align:left;cursor:pointer;border-bottom:1px solid var(--bg3);touch-action:manipulation;}
 .menu-item.active{color:var(--accent);}
+@media (min-width:700px){
+  #mobile-content{max-width:640px;margin-left:auto;margin-right:auto;}
+  #mobile-header{padding-left:calc(50% - 320px + 16px);padding-right:calc(50% - 320px + 16px);}
+}
 </style>
 <script type="module">
 import { initializeApp } from "https://cdn.jsdelivr.net/npm/firebase@10.12.0/app/+esm";
@@ -65,7 +70,7 @@ const EXPENSE_CATS_ALL=["餐飲",...EXPENSE_CATS];
 
 const MLB=[["#003087","#fff","NYY"],["#BD3039","#fff","BOS"],["#003831","#EFB21E","OAK"],["#0C2340","#fff","LAD"],["#C41E3A","#fff","STL"],["#EB6E1F","#000","SFG"],["#002D62","#fff","CHC"],["#003278","#fff","HOU"],["#E81828","#fff","CIN"]];
 const INIT_ACC=[{id:2,name:"台新帳戶",balance:3352,mlb:0},{id:3,name:"元大帳戶",balance:228,mlb:1},{id:4,name:"中信帳戶",balance:331,mlb:2},{id:5,name:"華南帳戶",balance:59,mlb:3},{id:6,name:"郵局帳戶",balance:8953,mlb:4},{id:7,name:"Leger",balance:117620,mlb:5},{id:8,name:"MAX",balance:25216,mlb:6},{id:9,name:"定期定額",balance:58338,mlb:7}];
-const TABS=[{id:"dashboard",icon:"⚡",label:"總覽"},{id:"assets",icon:"🏦",label:"資產"},{id:"log",icon:"📝",label:"記帳"},{id:"credit",icon:"💳",label:"信用卡"},{id:"invest",icon:"📈",label:"投資"},{id:"charts",icon:"📊",label:"圖表"}];
+const TABS=[{id:"dashboard",icon:"⚡",label:"總覽"},{id:"assets",icon:"🏦",label:"資產"},{id:"log",icon:"📝",label:"記帳"},{id:"credit",icon:"💳",label:"信用卡"},{id:"invest",icon:"📈",label:"投資"},{id:"journal",icon:"📓",label:"交易日誌"},{id:"charts",icon:"📊",label:"圖表"}];
 
 const INV_COLOR={us:"#7c3aed",crypto:"#f59e0b",tw:"#10b981",fund:"#3b82f6"};
 const INV_LABEL={us:"📈 美股",crypto:"🪙 加密貨幣",tw:"🏢 台股",fund:"💼 基金"};
@@ -79,7 +84,7 @@ const fmtUSD=n=>"US$"+n.toLocaleString(undefined,{minimumFractionDigits:2,maximu
 const today=()=>new Date().toISOString().slice(0,10);
 const todayM=()=>today().slice(0,7);
 
-let state={accounts:INIT_ACC,entries:[],credits:[],portfolio:[],monthlySnapshots:{},transfers:[]};
+let state={accounts:INIT_ACC,entries:[],credits:[],portfolio:[],monthlySnapshots:{},transfers:[],tradeJournal:[]};
 let tab="dashboard",filterMonth=todayM(),user=null,unsub=null,saveTimer=null,usdTwd=31.5;
 let editingId=null;
 
@@ -134,6 +139,7 @@ function subscribeUser(uid){
       state.portfolio=d.portfolio||[];
       state.monthlySnapshots=d.monthlySnapshots||{};
       state.transfers=d.transfers||[];
+      state.tradeJournal=(d.tradeJournal||[]).map(j=>j.exits?j:{...j,exits:j.exitPrice!=null?[{id:j.id+1,date:j.date,price:j.exitPrice,size:j.size}]:[]});
     }
     checkRollup();
     render();
@@ -199,6 +205,22 @@ window.saveEdit=id=>{
   mut(()=>state.entries=state.entries.map(e=>e.id===id?{...e,date,amt,cat,note}:e));
   editingId=null;
 };
+window.saveEditJournal=id=>{
+  const date=document.getElementById("jeid_date_"+id)?.value;
+  const ticker=document.getElementById("jeid_ticker_"+id)?.value.trim();
+  const direction=document.getElementById("jeid_dir_"+id)?.value;
+  const entryPrice=+document.getElementById("jeid_entry_"+id)?.value;
+  const size=+document.getElementById("jeid_size_"+id)?.value;
+  const tag=document.getElementById("jeid_tag_"+id)?.value.trim();
+  const notes=document.getElementById("jeid_notes_"+id)?.value??"";
+  if(!ticker){alert("標的代號不能為空");return;}
+  if(!entryPrice||entryPrice<=0){alert("進場價不能為空");return;}
+  if(!size||size<=0){alert("部位大小不能為空");return;}
+  const j=state.tradeJournal.find(x=>x.id===id);
+  if(j&&size<journalFilled(j)){alert(`部位大小不能小於已出場的數量（${journalFilled(j)}）`);return;}
+  mut(()=>state.tradeJournal=state.tradeJournal.map(j=>j.id===id?{...j,date,ticker,direction,entryPrice,size,tag,notes}:j));
+  editingId=null;
+};
 
 function getVal(id){
   return document.querySelector(`[data-fid="${id}"]`)?.value??"";
@@ -219,6 +241,28 @@ window.submitTransfer=()=>{
     state.transfers.unshift({id:Date.now(),from,to,amount,date:today(),note});
   });
 };
+window.submitJournal=()=>{
+  const date=getVal("jDate"),ticker=getVal("jTicker").trim(),direction=getVal("jDir");
+  const entryPrice=+getVal("jEntry"),size=+getVal("jSize");
+  const tag=getVal("jTag").trim(),notes=getVal("jNotes");
+  if(!ticker){alert("請輸入標的代號");return;}
+  if(!entryPrice||entryPrice<=0){alert("請輸入有效進場價");return;}
+  if(!size||size<=0){alert("請輸入有效部位大小");return;}
+  mut(()=>state.tradeJournal.unshift({id:Date.now(),date,ticker,direction,entryPrice,size,tag,notes,exits:[]}));
+};
+window.delJournal=id=>mut(()=>state.tradeJournal=state.tradeJournal.filter(j=>j.id!==id));
+window.addExit=jid=>{
+  const j=state.tradeJournal.find(x=>x.id===jid);
+  if(!j)return;
+  const date=document.getElementById("exd_date_"+jid)?.value;
+  const price=+document.getElementById("exd_price_"+jid)?.value;
+  const size=+document.getElementById("exd_size_"+jid)?.value;
+  const remaining=j.size-journalFilled(j);
+  if(!price||price<=0){alert("請輸入有效出場價");return;}
+  if(!size||size<=0||size>remaining){alert(`出場數量必須介於 1 ~ ${remaining} 之間`);return;}
+  mut(()=>state.tradeJournal=state.tradeJournal.map(x=>x.id===jid?{...x,exits:[...x.exits,{id:Date.now(),date,price,size}]}:x));
+};
+window.delExit=(jid,exitId)=>mut(()=>state.tradeJournal=state.tradeJournal.map(j=>j.id===jid?{...j,exits:j.exits.filter(x=>x.id!==exitId)}:j));
 window.delTransfer=id=>mut(()=>{
   const t=state.transfers.find(x=>x.id===id);
   if(t){
@@ -323,6 +367,8 @@ function renderCharts(me,totalBank,monthInc,monthExp,monthCredit,portfolioValue)
 
 function mlbBadge(idx){const[bg,tc,lb]=MLB[idx%MLB.length];return `<div class="mlb-badge" style="background:${bg};color:${tc};">${lb}</div>`;}
 const accName=id=>state.accounts.find(a=>a.id===id)?.name||"（已刪除帳戶）";
+const journalFilled=j=>(j.exits||[]).reduce((s,x)=>s+x.size,0);
+const journalPnl=j=>(j.exits||[]).reduce((s,x)=>s+(x.price-j.entryPrice)*x.size*(j.direction==="short"?-1:1),0);
 const lbl=t=>`<div class="label" style="margin-bottom:2px;">${t}</div>`;
 const sc=(label,value,color,accent)=>`<div class="stat-card" style="--accent-line:${accent||color||"var(--accent)"}"><div style="font-size:12px;color:var(--text2);margin-bottom:6px;">${label}</div><div style="font-size:20px;font-weight:700;color:${color||"var(--text1)"};">${value}</div></div>`;
 const dot=(c,l,v)=>`<span style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text2);"><span style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block;"></span>${l}${v?` <strong style="color:var(--text1);">${v}</strong>`:""}</span>`;
@@ -390,6 +436,28 @@ function editCard(e){
     <div style="display:flex;gap:8px;">
       <button class="btn-green" onclick="saveEdit(${e.id})" style="flex:1;padding:10px;font-size:15px;">✓ 儲存</button>
       <button onclick="startEdit(${e.id})" style="flex:1;padding:10px;border-radius:10px;background:var(--bg4);color:var(--text2);font-size:15px;">取消</button>
+    </div>
+  </div>`;
+}
+
+function editJournalCard(j){
+  return `<div class="card" style="margin-bottom:12px;border-left:3px solid var(--accent);">
+    <div style="font-size:13px;color:var(--accent);font-weight:700;margin-bottom:10px;">✏️ 編輯交易紀錄</div>
+    <div class="grid2" style="margin-bottom:10px;">
+      <div>${lbl("日期")}<input id="jeid_date_${j.id}" type="date" value="${j.date}"></div>
+      <div>${lbl("標的代號")}<input id="jeid_ticker_${j.id}" type="text" value="${j.ticker}"></div>
+    </div>
+    <div class="grid2" style="margin-bottom:10px;">
+      <div>${lbl("方向")}<select id="jeid_dir_${j.id}"><option value="long"${j.direction==="long"?" selected":""}>多</option><option value="short"${j.direction==="short"?" selected":""}>空</option></select></div>
+      <div>${lbl("部位大小")}<input id="jeid_size_${j.id}" type="number" value="${j.size}"></div>
+    </div>
+    <div style="margin-bottom:10px;">${lbl("進場價")}<input id="jeid_entry_${j.id}" type="number" value="${j.entryPrice}"></div>
+    <div style="font-size:11px;color:var(--text3);margin:-6px 0 10px;">出場紀錄請在卡片上直接新增/刪除，這裡只能改買進的基本資料。</div>
+    <div style="margin-bottom:10px;">${lbl("策略 / 心得標籤")}<input id="jeid_tag_${j.id}" type="text" value="${j.tag||""}"></div>
+    <div style="margin-bottom:14px;">${lbl("交易心得")}<textarea id="jeid_notes_${j.id}">${j.notes||""}</textarea></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-green" onclick="saveEditJournal(${j.id})" style="flex:1;padding:10px;font-size:15px;">✓ 儲存</button>
+      <button onclick="startEdit(${j.id})" style="flex:1;padding:10px;border-radius:10px;background:var(--bg4);color:var(--text2);font-size:15px;">取消</button>
     </div>
   </div>`;
 }
@@ -571,6 +639,68 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
       </div>
       <div style="font-size:11px;color:var(--text3);text-align:right;">即時匯率：1 USD = ${usdTwd.toFixed(2)} TWD · Yahoo Finance / CoinGecko</div>`;
   }
+
+  if(tab==="journal") return `
+    <div class="card" style="margin-bottom:18px;">
+      <div style="font-size:16px;font-weight:700;margin-bottom:12px;color:var(--accent);">📓 新增交易紀錄</div>
+      <div class="grid2" style="margin-bottom:10px;">
+        <div>${lbl("日期")}<input type="date" data-fid="jDate" value="${today()}"></div>
+        <div>${lbl("標的代號")}<input data-fid="jTicker" placeholder="2330 / AAPL / BTC" type="text"></div>
+      </div>
+      <div class="grid2" style="margin-bottom:2px;">
+        <div>${lbl("方向")}<select data-fid="jDir"><option value="long">多</option><option value="short">空</option></select></div>
+        <div>${lbl("部位大小（單位數/股數）")}<input type="number" data-fid="jSize" placeholder="1000"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">多＝先買後賣；空＝先賣後買（放空）。手上已經持有、之後要賣出平倉的話，方向還是填「多」，賣出時用編輯把出場價補上即可，不用改成「空」。</div>
+      <div style="margin-bottom:10px;">${lbl("進場價")}<input type="number" data-fid="jEntry" placeholder="0"></div>
+      <div style="margin-bottom:10px;">${lbl("策略 / 心得標籤")}<input data-fid="jTag" placeholder="突破、拉回買、當沖..." type="text"></div>
+      <div style="margin-bottom:14px;">${lbl("交易心得")}<textarea data-fid="jNotes" placeholder="這筆為什麼進場、當下怎麼想、事後檢討..."></textarea></div>
+      <button class="btn-green" onclick="submitJournal()" style="width:100%;padding:13px;font-size:16px;">新增紀錄</button>
+    </div>
+    <div style="font-size:11px;color:var(--text3);padding:8px 12px;background:var(--bg3);border-radius:8px;margin-bottom:14px;border:1px solid var(--border);">
+      💡 新增紀錄時只填買進資料；賣出（可以分好幾次）在下面每筆紀錄的卡片裡個別新增出場。
+    </div>
+    ${state.tradeJournal.length===0?`<div style="font-size:14px;color:var(--text3);text-align:center;padding:20px 0;">還沒有交易紀錄，新增第一筆吧！</div>`:""}
+    ${state.tradeJournal.map(j=>{
+      if(editingId===j.id)return editJournalCard(j);
+      const filled=journalFilled(j);
+      const remaining=j.size-filled;
+      const isOpen=remaining>0;
+      const hasExits=(j.exits||[]).length>0;
+      const pnl=journalPnl(j);
+      const dirLabel=j.direction==="short"?"空":"多";
+      const dirColor=j.direction==="short"?"#f87171":"#00d4a0";
+      const exitsHtml=(j.exits||[]).map(x=>`<div class="row" onclick="event.stopPropagation();">
+        <div style="flex:1;font-size:12px;color:var(--text2);">${x.date} · 出場 ${x.size} @ ${x.price}</div>
+        <button class="btn-del" onclick="delExit(${j.id},${x.id})">×</button>
+      </div>`).join("");
+      const addExitHtml=isOpen?`<div style="display:flex;gap:6px;align-items:flex-end;margin-top:10px;flex-wrap:wrap;" onclick="event.stopPropagation();">
+        <div style="flex:1;min-width:110px;">${lbl("出場日期")}<input id="exd_date_${j.id}" type="date" value="${today()}"></div>
+        <div style="flex:1;min-width:90px;">${lbl("出場價")}<input id="exd_price_${j.id}" type="number" placeholder="0"></div>
+        <div style="flex:1;min-width:90px;">${lbl(`數量（剩 ${remaining}）`)}<input id="exd_size_${j.id}" type="number" placeholder="${remaining}"></div>
+        <button onclick="addExit(${j.id})" style="padding:10px 16px;border-radius:10px;background:var(--bg4);color:var(--accent);font-weight:700;margin-top:4px;">出場</button>
+      </div>`:"";
+      return `<div class="card" style="margin-bottom:12px;border-left:3px solid ${isOpen?"#fbbf24":(pnl>=0?"#00d4a0":"#f87171")};cursor:pointer;" onclick="startEdit(${j.id})">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+          <div>
+            <span style="font-size:15px;font-weight:700;">${j.ticker}</span>
+            <span class="tag" style="background:rgba(255,255,255,.08);color:${dirColor};margin-left:8px;">${dirLabel}</span>
+            ${isOpen?`<span class="tag" style="background:rgba(251,191,36,.15);color:#fbbf24;margin-left:4px;">持有中</span>`:`<span class="tag" style="background:rgba(0,212,160,.15);color:#00d4a0;margin-left:4px;">已平倉</span>`}
+          </div>
+          <button class="btn-del" onclick="event.stopPropagation();delJournal(${j.id})">×</button>
+        </div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">${j.date}${j.tag?` · ${j.tag}`:""}</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;font-size:12px;color:var(--text2);">
+          <div>買進<br><strong style="color:var(--text1);font-size:14px;">${j.size}</strong></div>
+          <div>進場<br><strong style="color:var(--text1);font-size:14px;">${j.entryPrice}</strong></div>
+          <div>剩餘<br><strong style="color:var(--text1);font-size:14px;">${remaining}</strong></div>
+          <div>已實現損益<br><strong style="font-size:14px;color:${!hasExits?"var(--text3)":(pnl>=0?"#00d4a0":"#f87171")};">${!hasExits?"—":(pnl>=0?"+":"")+fmt(Math.round(pnl))}</strong></div>
+        </div>
+        ${hasExits?`<div style="border-top:1px solid var(--border);margin-top:8px;">${exitsHtml}</div>`:""}
+        ${addExitHtml}
+        ${j.notes?`<div style="font-size:13px;color:var(--text2);white-space:pre-wrap;border-top:1px solid var(--border);padding-top:10px;margin-top:10px;">${j.notes}</div>`:""}
+      </div>`;
+    }).join("")}`;
 
   if(tab==="charts"){
     const usVal=state.portfolio.filter(p=>p.type==="us").reduce((s,p)=>s+p.costPerUnit*p.units*usdTwd,0);
