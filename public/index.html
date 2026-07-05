@@ -432,7 +432,7 @@ function renderCharts(me,totalBank,monthInc,monthExp,monthCredit,portfolioValue)
   }
 
   // 圖5：股票帳戶現金控制（持股 vs 現金）
-  const accId=cashCtrlAccId??state.accounts[0]?.id;
+  const accId=cashCtrlAccId??defaultCashCtrlAccId();
   const acc=state.accounts.find(a=>a.id===accId);
   if(acc){
     const openPos=state.tradeJournal.filter(j=>j.account===accId&&(j.size-journalFilled(j))>0);
@@ -449,6 +449,7 @@ function renderCharts(me,totalBank,monthInc,monthExp,monthCredit,portfolioValue)
 
 function mlbBadge(idx){const[bg,tc,lb]=MLB[idx%MLB.length];return `<div class="mlb-badge" style="background:${bg};color:${tc};">${lb}</div>`;}
 const accName=id=>state.accounts.find(a=>a.id===id)?.name||"（已刪除帳戶）";
+const defaultCashCtrlAccId=()=>(state.accounts.find(a=>a.name==="台新股票帳戶")||state.accounts[0])?.id;
 const journalFilled=j=>(j.exits||[]).reduce((s,x)=>s+x.size,0);
 const journalPnl=j=>(j.exits||[]).reduce((s,x)=>s+(x.price-j.entryPrice)*x.size*(j.direction==="short"?-1:1),0);
 // 多：進場花錢(-)、出場收錢(+)；空：進場收錢(+)、出場花錢(-)
@@ -752,6 +753,20 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
     <div style="font-size:11px;color:var(--text3);padding:8px 12px;background:var(--bg3);border-radius:8px;margin-bottom:14px;border:1px solid var(--border);">
       💡 新增紀錄時只填買進資料；賣出（可以分好幾次）在下面每筆紀錄的卡片裡個別新增出場。
     </div>
+    ${(()=>{
+      const accIds=[...new Set(state.tradeJournal.filter(j=>j.account!=null).map(j=>j.account))];
+      if(accIds.length===0)return "";
+      const cards=accIds.map(id=>{
+        const a=state.accounts.find(x=>x.id===id);
+        if(!a)return "";
+        const neg=a.balance<0;
+        return `<div class="stat-card" style="--accent-line:${neg?"#f87171":"#4f8ef7"};flex:1;min-width:140px;">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:6px;">${a.name} 現金餘額</div>
+          <div style="font-size:18px;font-weight:700;color:${neg?"#f87171":"var(--text1)"};">${fmt(a.balance)}</div>
+        </div>`;
+      }).join("");
+      return `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">${cards}</div>`;
+    })()}
     ${state.tradeJournal.length===0?`<div style="font-size:14px;color:var(--text3);text-align:center;padding:20px 0;">還沒有交易紀錄，新增第一筆吧！</div>`:""}
     ${state.tradeJournal.map(j=>{
       if(editingId===j.id)return editJournalCard(j);
@@ -829,7 +844,7 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
       <div class="glow-line"></div>
       ${(()=>{
         if(state.accounts.length===0)return `<div style="font-size:15px;font-weight:700;margin-bottom:8px;">股票帳戶現金控制</div><div style="font-size:13px;color:var(--text3);">請先到「資產」分頁新增帳戶。</div>`;
-        const accId=cashCtrlAccId??state.accounts[0].id;
+        const accId=cashCtrlAccId??defaultCashCtrlAccId();
         const acc=state.accounts.find(a=>a.id===accId);
         const openPos=state.tradeJournal.filter(j=>j.account===accId&&(j.size-journalFilled(j))>0);
         const byTicker={};
