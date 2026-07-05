@@ -145,6 +145,8 @@ function subscribeUser(uid){
       state.monthlySnapshots=d.monthlySnapshots||{};
       state.transfers=d.transfers||[];
       state.tradeJournal=(d.tradeJournal||[]).map(j=>j.exits?j:{...j,exits:j.exitPrice!=null?[{id:j.id+1,date:j.date,price:j.exitPrice,size:j.size}]:[]});
+      state.journalCashApplied=d.journalCashApplied||false;
+      migrateJournalCash();
     }
     checkRollup();
     render();
@@ -173,6 +175,17 @@ async function login(){
   }
 }
 async function logout(){if(unsub)unsub();await signOut(auth);render();}
+
+// 一次性修正：過去交易日誌的買賣從未真的扣款/加回帳戶餘額，這裡補算一次歷史影響，之後靠旗標避免重複執行
+function migrateJournalCash(){
+  if(state.journalCashApplied)return;
+  state.tradeJournal.forEach(j=>{
+    if(j.account==null)return;
+    adjustAccountBalance(j.account,journalTotalCashImpact(j));
+  });
+  state.journalCashApplied=true;
+  saveToCloud();
+}
 
 function checkRollup(){
   const day=new Date().getDate(),ym=todayM();
@@ -227,7 +240,12 @@ window.saveEditJournal=id=>{
   if(!size||size<=0){alert("部位大小不能為空");return;}
   const j=state.tradeJournal.find(x=>x.id===id);
   if(j&&size<journalFilled(j)){alert(`部位大小不能小於已出場的數量（${journalFilled(j)}）`);return;}
-  mut(()=>state.tradeJournal=state.tradeJournal.map(j=>j.id===id?{...j,date,ticker,direction,entryPrice,size,tag,notes,account}:j));
+  mut(()=>{
+    if(j)adjustAccountBalance(j.account,-journalTotalCashImpact(j));
+    state.tradeJournal=state.tradeJournal.map(x=>x.id===id?{...x,date,ticker,direction,entryPrice,size,tag,notes,account}:x);
+    const updated=state.tradeJournal.find(x=>x.id===id);
+    if(updated)adjustAccountBalance(account,journalTotalCashImpact(updated));
+  });
   editingId=null;
 };
 
@@ -258,9 +276,17 @@ window.submitJournal=()=>{
   if(!ticker){alert("請輸入標的代號");return;}
   if(!entryPrice||entryPrice<=0){alert("請輸入有效進場價");return;}
   if(!size||size<=0){alert("請輸入有效部位大小");return;}
-  mut(()=>state.tradeJournal.unshift({id:Date.now(),date,ticker,direction,entryPrice,size,tag,notes,account,exits:[]}));
+  mut(()=>{
+    const j={id:Date.now(),date,ticker,direction,entryPrice,size,tag,notes,account,exits:[]};
+    state.tradeJournal.unshift(j);
+    adjustAccountBalance(account,journalEntryCashDelta(j));
+  });
 };
-window.delJournal=id=>mut(()=>state.tradeJournal=state.tradeJournal.filter(j=>j.id!==id));
+window.delJournal=id=>mut(()=>{
+  const j=state.tradeJournal.find(x=>x.id===id);
+  if(j)adjustAccountBalance(j.account,-journalTotalCashImpact(j));
+  state.tradeJournal=state.tradeJournal.filter(x=>x.id!==id);
+});
 window.addExit=jid=>{
   const j=state.tradeJournal.find(x=>x.id===jid);
   if(!j)return;
@@ -270,9 +296,18 @@ window.addExit=jid=>{
   const remaining=j.size-journalFilled(j);
   if(!price||price<=0){alert("請輸入有效出場價");return;}
   if(!size||size<=0||size>remaining){alert(`出場數量必須介於 1 ~ ${remaining} 之間`);return;}
-  mut(()=>state.tradeJournal=state.tradeJournal.map(x=>x.id===jid?{...x,exits:[...x.exits,{id:Date.now(),date,price,size}]}:x));
+  mut(()=>{
+    const exit={id:Date.now(),date,price,size};
+    state.tradeJournal=state.tradeJournal.map(x=>x.id===jid?{...x,exits:[...x.exits,exit]}:x);
+    adjustAccountBalance(j.account,journalExitCashDelta(j,exit));
+  });
 };
-window.delExit=(jid,exitId)=>mut(()=>state.tradeJournal=state.tradeJournal.map(j=>j.id===jid?{...j,exits:j.exits.filter(x=>x.id!==exitId)}:j));
+window.delExit=(jid,exitId)=>mut(()=>{
+  const j=state.tradeJournal.find(x=>x.id===jid);
+  const exit=j?.exits.find(x=>x.id===exitId);
+  if(j&&exit)adjustAccountBalance(j.account,-journalExitCashDelta(j,exit));
+  state.tradeJournal=state.tradeJournal.map(x=>x.id===jid?{...x,exits:x.exits.filter(y=>y.id!==exitId)}:x);
+});
 window.delTransfer=id=>mut(()=>{
   const t=state.transfers.find(x=>x.id===id);
   if(t){
@@ -416,6 +451,14 @@ function mlbBadge(idx){const[bg,tc,lb]=MLB[idx%MLB.length];return `<div class="m
 const accName=id=>state.accounts.find(a=>a.id===id)?.name||"（已刪除帳戶）";
 const journalFilled=j=>(j.exits||[]).reduce((s,x)=>s+x.size,0);
 const journalPnl=j=>(j.exits||[]).reduce((s,x)=>s+(x.price-j.entryPrice)*x.size*(j.direction==="short"?-1:1),0);
+// 多：進場花錢(-)、出場收錢(+)；空：進場收錢(+)、出場花錢(-)
+const journalEntryCashDelta=j=>{const sign=j.direction==="short"?-1:1;return -sign*j.entryPrice*j.size;};
+const journalExitCashDelta=(j,x)=>{const sign=j.direction==="short"?-1:1;return sign*x.price*x.size;};
+const journalTotalCashImpact=j=>journalEntryCashDelta(j)+(j.exits||[]).reduce((s,x)=>s+journalExitCashDelta(j,x),0);
+function adjustAccountBalance(accId,delta){
+  if(accId==null||!delta)return;
+  state.accounts=state.accounts.map(a=>a.id===accId?{...a,balance:a.balance+delta}:a);
+}
 const lbl=t=>`<div class="label" style="margin-bottom:2px;">${t}</div>`;
 const sc=(label,value,color,accent)=>`<div class="stat-card" style="--accent-line:${accent||color||"var(--accent)"}"><div style="font-size:12px;color:var(--text2);margin-bottom:6px;">${label}</div><div style="font-size:20px;font-weight:700;color:${color||"var(--text1)"};">${value}</div></div>`;
 const dot=(c,l,v)=>`<span style="display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text2);"><span style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block;"></span>${l}${v?` <strong style="color:var(--text1);">${v}</strong>`:""}</span>`;
@@ -797,11 +840,18 @@ function buildContent(me,totalBank,monthInc,monthExp,monthCredit,savings,avg,por
           ...posLabels.map((t,i)=>dot(CASH_CTRL_COLORS[i%CASH_CTRL_COLORS.length],t,fmtPct(byTicker[t],cashCtrlTotal))),
           dot("#4f8ef7","現金",fmtPct(acc?.balance||0,cashCtrlTotal)),
         ].join("");
+        const cashBalance=acc?.balance||0;
+        const isNegative=cashBalance<0;
         return `
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
             <div style="font-size:15px;font-weight:700;">股票帳戶現金控制</div>
             <select onchange="setCashCtrlAcc(this.value)" style="width:auto;margin-top:0;padding:6px 10px;font-size:13px;margin-left:auto;">${state.accounts.map(a=>`<option value="${a.id}"${a.id===accId?" selected":""}>${a.name}</option>`).join("")}</select>
           </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border:1px solid ${isNegative?"#f87171":"var(--border)"};border-radius:12px;padding:12px 16px;margin-bottom:10px;">
+            <span style="font-size:13px;color:var(--text2);font-weight:600;">買進這些持股後，剩餘現金</span>
+            <span style="font-size:18px;font-weight:800;color:${isNegative?"#f87171":"#00d4a0"};">${fmt(cashBalance)}</span>
+          </div>
+          ${isNegative?`<div style="font-size:13px;color:#f87171;font-weight:700;padding:10px 14px;background:rgba(248,113,113,.12);border:1px solid #f87171;border-radius:10px;margin-bottom:10px;">⚠️ 現金已經不夠支付這些持股成本，可能會有違約交割風險，請確認實際帳戶餘額並考慮補款或減碼。</div>`:""}
           ${posLabels.length===0?`<div style="font-size:13px;color:var(--text3);margin-bottom:10px;">這個帳戶目前沒有連結到還在持有的交易紀錄（新增交易紀錄時要選這個帳戶）。</div>`:""}
           ${pieSection("","cashCtrl",legs)}`;
       })()}`;
